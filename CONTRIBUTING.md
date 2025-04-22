@@ -21,6 +21,11 @@ src/
 │   │   ├── usecase.go
 │   │   ├── dto.go        <-- BuildSavepointRequest & Result
 │   │   └── usecase_test.go
+├── exposition/
+│   └── cli/
+│       ├── root.go
+│       ├── docker_list.go      # CLI adapter (calls usecase)
+│       └── formatter.go        # CLI-specific output formatting
 
 ```
 

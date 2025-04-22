@@ -1,0 +1,95 @@
+graph TD
+
+%% Domain
+I1[🟫 Issue 1: Savepoint entity]
+
+%% Core Interfaces
+I2_1[⚙️ Issue 2.1: DockerfileParser]
+I2_2[⚙️ Issue 2.2: DockerfileSlicer]
+I2_3[⚙️ Issue 2.3: TempDockerfileWriter]
+I2_4[⚙️ Issue 2.4: DockerBuilder]
+I2_5[⚙️ Issue 2.5: ImageChecker]
+I2_6[⚙️ Issue 2.6: ImagePusher]
+I2_7[⚙️ Issue 2.7: ConfigReader]
+
+%% Core Errors
+I3_1[⚠️ Issue 3.1: ErrSavepointNotFound]
+I3_2[⚠️ Issue 3.2: ErrRepoMissing]
+I3_3[⚠️ Issue 3.3: ErrDockerUnavailable]
+
+%% Application
+I4[🟪 Issue 4: DTOs]
+
+%% Infrastructure
+I5[🛠 Issue 5: DockerfileParser impl]
+I6[✂️ Issue 6: DockerfileSlicer impl]
+I7[🔍 Issue 7: ImageChecker impl]
+I8[🧾 Issue 8: TempDockerfileWriter impl]
+I9[🧱 Issue 9: DockerBuilder impl]
+I10[🚀 Issue 10: ImagePusher impl]
+I11[📦 Issue 11: ConfigReader impl]
+
+%% Application Use Case
+I12[🟨 Issue 12: BuildSavepoint usecase]
+
+%% Tests and CLI
+I13[🧪 Issue 13: Usecase tests]
+I14[💻 Issue 14: CLI command]
+I15[👀 Issue 15: --dry-run flag]
+
+%% Relationships
+
+%% Savepoint
+I1 --> I2_1
+I1 --> I2_2
+I1 --> I5
+I1 --> I6
+
+%% Core interfaces → infra
+I2_1 --> I5
+I2_2 --> I6
+I2_3 --> I8
+I2_4 --> I9
+I2_5 --> I7
+I2_6 --> I10
+I2_7 --> I11
+
+%% Errors
+I3_1 --> I6
+I3_2 --> I11
+I3_3 --> I7
+I3_3 --> I9
+I3_3 --> I10
+
+%% DTOs
+I4 --> I14
+
+%% Infrastructure to usecase
+I5 --> I12
+I6 --> I12
+I7 --> I12
+I8 --> I12
+I9 --> I12
+I10 --> I12
+I11 --> I12
+
+%% Usecase requirements
+I1 --> I12
+I2_1 --> I12
+I2_2 --> I12
+I2_3 --> I12
+I2_4 --> I12
+I2_5 --> I12
+I2_6 --> I12
+I2_7 --> I12
+I3_1 --> I12
+I3_2 --> I12
+I3_3 --> I12
+
+%% Usecase output
+I12 --> I13
+I12 --> I14
+I12 --> I15
+
+%% CLI
+I14 --> I15
