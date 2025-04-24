@@ -15,13 +15,13 @@ import (
 )
 
 type BuildSavepointUseCase struct {
-	Parser   parse.DockerfileParser
-	Slicer   build.DockerfileSlicer
-	Writer   build.TempDockerfileWriter
-	Builder  docker.DockerBuilder
-	Checker  registry.ImageChecker
-	Pusher   registry.ImagePusher
-	Conf     config.ConfigReader
+	Parser  parse.DockerfileParser
+	Slicer  build.DockerfileSlicer
+	Writer  build.TempDockerfileWriter
+	Builder docker.DockerBuilder
+	Checker registry.ImageChecker
+	Pusher  registry.ImagePusher
+	Conf    config.ConfigReader
 }
 
 func NewBuildSavepointUseCase(
@@ -49,12 +49,63 @@ func (uc *BuildSavepointUseCase) Execute(ctx context.Context, req BuildSavepoint
 	if err != nil {
 		return nil, coreErr.ErrRepoMissing
 	}
+	
+	if strings.TrimSpace(req.FilePath) == "" {
+		req.FilePath = "Dockerfile"
+	}
 
-	savepoints, err := uc.Parser.Parse("Dockerfile")
+	savepoints, err := uc.Parser.Parse(req.FilePath)
 	if err != nil {
 		return nil, err
 	}
 
+	// Handle fallback case: no savepoint provided, and none found in file
+	if req.Savepoint == "" && len(savepoints) == 0 {
+		lines, err := os.ReadFile(req.FilePath)
+		if err != nil {
+			return nil, err
+		}
+		content := strings.Split(string(lines), "\n")
+		tag := repo + ":latest"
+
+		if !req.Force {
+			exists, err := uc.Checker.TagExists(tag)
+			if err != nil {
+				return nil, err
+			}
+			if exists {
+				return &BuildSavepointResult{Tag: tag, Skipped: true}, nil
+			}
+		}
+
+		if req.DryRun {
+			return &BuildSavepointResult{
+				Tag:           tag,
+				DockerfileOut: strings.Join(content, "\n"),
+				Skipped:       true,
+			}, nil
+		}
+
+		path, err := uc.Writer.Write(content, "full")
+		if err != nil {
+			return nil, err
+		}
+
+		err = uc.Builder.Build(ctx, path, ".", tag)
+		if err != nil {
+			return nil, err
+		}
+		if req.Push {
+			err = uc.Pusher.Push(tag)
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		return &BuildSavepointResult{Tag: tag, Skipped: false}, nil
+	}
+
+	// Find the requested savepoint
 	var target *domain.Savepoint
 	for _, sp := range savepoints {
 		if sp.Name == req.Savepoint {
@@ -66,29 +117,29 @@ func (uc *BuildSavepointUseCase) Execute(ctx context.Context, req BuildSavepoint
 		return nil, coreErr.ErrSavepointNotFound
 	}
 
-	// Read Dockerfile lines
-	data, err := os.ReadFile("Dockerfile")
+	// Read Dockerfile
+	data, err := os.ReadFile(req.FilePath)
 	if err != nil {
 		return nil, err
 	}
 	lines := strings.Split(string(data), "\n")
 
-	// Slice Dockerfile
+
 	sliced, err := uc.Slicer.Slice(lines, *target)
 	if err != nil {
 		return nil, err
 	}
 
-	// If dry-run: return the sliced Dockerfile and exit
+	tag := repo + ":" + req.Savepoint
+
+	// Dry-run mode
 	if req.DryRun {
 		return &BuildSavepointResult{
-			Tag:           repo + ":" + req.Savepoint,
+			Tag:           tag,
 			DockerfileOut: strings.Join(sliced, "\n"),
 			Skipped:       true,
 		}, nil
 	}
-
-	tag := repo + ":" + req.Savepoint
 
 	// Skip if tag exists
 	if !req.Force {

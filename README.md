@@ -119,6 +119,18 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) for full architectural instructions.
 | Visibility        | List savepoints  | `list`            |
 
 ---
+polish & infrastructure
+🧰 Add:
+dockpoint init to scaffold .dockpointrc.json
+
+dockpoint config show or edit
+
+🔒 Add:
+Logging (log pkg or zap)
+
+Verbosity control via --verbose
+
+---
 
 ## 🧱 Technologies
 - Go 1.22+

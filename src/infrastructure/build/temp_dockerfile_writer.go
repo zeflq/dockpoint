@@ -15,8 +15,14 @@ func NewTempDockerfileWriter() core.TempDockerfileWriter {
 }
 
 func (w *TempDockerfileWriterImpl) Write(lines []string, savepoint string) (string, error) {
+	tmpDir := ".dockpoint/tmp"
+	if err := os.MkdirAll(tmpDir, 0755); err != nil {
+		return "", err
+	}
+
 	filename := fmt.Sprintf(".dockpoint.Dockerfile.%s", savepoint)
-	fullPath := filepath.Join(os.TempDir(), filename)
+	fullPath := filepath.Join(tmpDir, filename)
+
 
 	content := ""
 	for _, line := range lines {

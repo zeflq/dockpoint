@@ -69,8 +69,8 @@ func TestUseCase_DryRun(t *testing.T) {
 		{
 			name: "successful dry run",
 			dockerfile: []string{
-				"FROM node:20",
 				"# savepoint: base",
+				"FROM node:20",
 				"RUN npm install",
 			},
 			savepoint:   "base",
@@ -81,8 +81,8 @@ func TestUseCase_DryRun(t *testing.T) {
 		{
 			name: "successful build",
 			dockerfile: []string{
-				"FROM node:20",
 				"# savepoint: base",
+				"FROM node:20",
 				"RUN npm install",
 			},
 			savepoint:   "base",
@@ -93,16 +93,15 @@ func TestUseCase_DryRun(t *testing.T) {
 		{
 			name: "non-existent savepoint",
 			dockerfile: []string{
-				"FROM node:20",
 				"# savepoint: base",
-				"RUN npm install",
+				"FROM node:20",
 			},
-			savepoint:   "nonexistent",
-			dryRun:      true,
-			wantError:   true,
+			savepoint: "nonexistent",
+			dryRun:    true,
+			wantError: true,
 		},
 		{
-			name: "empty dockerfile",
+			name:       "empty dockerfile",
 			dockerfile: []string{},
 			savepoint:  "base",
 			dryRun:     true,
@@ -112,14 +111,16 @@ func TestUseCase_DryRun(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			tmp := t.TempDir()
+			_ = os.Chdir(tmp)
+
 			err := os.WriteFile("Dockerfile", []byte(strings.Join(tt.dockerfile, "\n")), 0644)
 			if err != nil {
 				t.Fatalf("Failed to create test Dockerfile: %v", err)
 			}
-			defer os.Remove("Dockerfile")
 
 			usecase := NewBuildSavepointUseCase(
-				&mockParser{dockerfile: tt.dockerfile}, // Pass the dockerfile content
+				&mockParser{dockerfile: tt.dockerfile},
 				&mockSlicer{content: tt.dockerfile},
 				&mockWriter{},
 				&mockBuilder{},

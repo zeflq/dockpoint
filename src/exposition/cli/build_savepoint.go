@@ -1,9 +1,17 @@
 package cli
 
 import (
+	"context"
 	"fmt"
+	"os"
 
 	"github.com/spf13/cobra"
+	"github.com/zeflq/dockpoint/src/application/build_savepoint"
+	"github.com/zeflq/dockpoint/src/infrastructure/build"
+	"github.com/zeflq/dockpoint/src/infrastructure/config"
+	"github.com/zeflq/dockpoint/src/infrastructure/docker"
+	"github.com/zeflq/dockpoint/src/infrastructure/parse"
+	"github.com/zeflq/dockpoint/src/infrastructure/registry"
 )
 
 var buildSavepointCmd = &cobra.Command{
@@ -17,13 +25,52 @@ Example:
 		if len(args) > 0 {
 			savepoint = args[0]
 		}
+		filePath, _ := cmd.Flags().GetString("file")
+		if filePath == "" {
+			filePath = "Dockerfile"
+		}
 		force, _ := cmd.Flags().GetBool("force")
 		push, _ := cmd.Flags().GetBool("push")
 		dryRun, _ := cmd.Flags().GetBool("dry-run")
-
-		// Placeholder for actual use case call
-		fmt.Printf("🚧 BuildSavepoint called with:\n- Savepoint: %s\n- Force: %v\n- Push: %v\n- DryRun: %v\n",
-			savepoint, force, push, dryRun)
+	
+		// Build DTO
+		req := build_savepoint.BuildSavepointRequest{
+			Savepoint: savepoint,
+			Force:     force,
+			Push:      push,
+			DryRun:    dryRun,
+			FilePath:  filePath,
+		}
+	
+		// Inject all dependencies (manual wiring for now)
+		usecase := build_savepoint.NewBuildSavepointUseCase(
+			parse.NewDockerfileParser(),
+			build.NewDockerfileSlicer(),
+			build.NewTempDockerfileWriter(),
+			docker.NewDockerBuilder(),
+			registry.NewImageChecker(),
+			registry.NewImagePusher(),
+			config.NewConfigReader(),
+		)
+	
+		// Call the use case
+		ctx := context.Background()
+		result, err := usecase.Execute(ctx, req)
+		if err != nil {
+			fmt.Println("❌ Error:", err)
+			os.Exit(1)
+		}
+	
+		// Output result
+		if result.Skipped {
+			fmt.Println("⏭️ Skipped: image already exists")
+		} else {
+			fmt.Println("✅ Build complete:", result.Tag)
+		}
+	
+		if dryRun {
+			fmt.Println("📝 Generated Dockerfile:\n---\n" + result.DockerfileOut)
+		}
 	},
 }
 
@@ -31,6 +78,7 @@ func init() {
 	buildSavepointCmd.Flags().Bool("force", false, "Force rebuild even if image exists")
 	buildSavepointCmd.Flags().Bool("push", false, "Push image after build")
 	buildSavepointCmd.Flags().Bool("dry-run", false, "Skip build, just output the generated Dockerfile")
+	buildSavepointCmd.Flags().StringP("file", "f", "", "Path to the Dockerfile (default: Dockerfile)")
 
 	// ✅ Register the command to rootCmd
 	rootCmd.AddCommand(buildSavepointCmd)

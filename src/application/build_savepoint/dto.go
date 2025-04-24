@@ -6,6 +6,7 @@ type BuildSavepointRequest struct {
 	Force     bool
 	Push      bool
 	DryRun    bool
+	FilePath  string // path to Dockerfile, default is "Dockerfile"
 }
 
 // BuildSavepointResult represents the result of the build process.
