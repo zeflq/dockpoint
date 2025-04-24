@@ -25,12 +25,12 @@ func TestFullBuildSavepointFlow() {
 		registry.NewImagePusher(),
 		config.NewConfigReader(),
 	)
-
+	dryRun := true
 	req := build_savepoint.BuildSavepointRequest{
 		Savepoint: "base", // should exist in your Dockerfile
 		Force:     true,
-		Push:      false,
-		DryRun:    false,
+		Push:      true,
+		DryRun:    dryRun,
 	}
 
 	result, err := usecase.Execute(ctx, req)
@@ -44,4 +44,10 @@ func TestFullBuildSavepointFlow() {
 	} else {
 		fmt.Println("✅ Build completed:", result.Tag)
 	}
+	if dryRun {
+		fmt.Println("📝 Generated Dockerfile preview:")
+		fmt.Println("================================")
+		fmt.Println(result.DockerfileOut)
+		fmt.Println("================================")
+	}		
 }

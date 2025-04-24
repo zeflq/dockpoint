@@ -32,7 +32,8 @@ Example:
 		force, _ := cmd.Flags().GetBool("force")
 		push, _ := cmd.Flags().GetBool("push")
 		dryRun, _ := cmd.Flags().GetBool("dry-run")
-	
+		cleanup, _ := cmd.Flags().GetBool("cleanup")
+
 		// Build DTO
 		req := build_savepoint.BuildSavepointRequest{
 			Savepoint: savepoint,
@@ -40,6 +41,7 @@ Example:
 			Push:      push,
 			DryRun:    dryRun,
 			FilePath:  filePath,
+			Cleanup:   cleanup,
 		}
 	
 		// Inject all dependencies (manual wiring for now)
@@ -69,8 +71,11 @@ Example:
 		}
 	
 		if dryRun {
-			fmt.Println("📝 Generated Dockerfile:\n---\n" + result.DockerfileOut)
-		}
+			fmt.Println("📝 Generated Dockerfile preview:")
+			fmt.Println("================================")
+			fmt.Println(result.DockerfileOut)
+			fmt.Println("================================")
+		}		
 	},
 }
 
@@ -79,6 +84,7 @@ func init() {
 	buildSavepointCmd.Flags().Bool("push", false, "Push image after build")
 	buildSavepointCmd.Flags().Bool("dry-run", false, "Skip build, just output the generated Dockerfile")
 	buildSavepointCmd.Flags().StringP("file", "f", "", "Path to the Dockerfile (default: Dockerfile)")
+	buildSavepointCmd.Flags().Bool("cleanup", false, "Remove temporary Dockerfile after building")
 
 	// ✅ Register the command to rootCmd
 	rootCmd.AddCommand(buildSavepointCmd)

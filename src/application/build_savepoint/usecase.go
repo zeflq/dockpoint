@@ -68,6 +68,14 @@ func (uc *BuildSavepointUseCase) Execute(ctx context.Context, req BuildSavepoint
 		content := strings.Split(string(lines), "\n")
 		tag := repo + ":latest"
 
+		if req.DryRun {
+			return &BuildSavepointResult{
+				Tag:           tag,
+				DockerfileOut: strings.Join(content, "\n"),
+				Skipped:       true,
+			}, nil
+		}
+
 		if !req.Force {
 			exists, err := uc.Checker.TagExists(tag)
 			if err != nil {
@@ -76,14 +84,6 @@ func (uc *BuildSavepointUseCase) Execute(ctx context.Context, req BuildSavepoint
 			if exists {
 				return &BuildSavepointResult{Tag: tag, Skipped: true}, nil
 			}
-		}
-
-		if req.DryRun {
-			return &BuildSavepointResult{
-				Tag:           tag,
-				DockerfileOut: strings.Join(content, "\n"),
-				Skipped:       true,
-			}, nil
 		}
 
 		path, err := uc.Writer.Write(content, "full")
@@ -160,7 +160,9 @@ func (uc *BuildSavepointUseCase) Execute(ctx context.Context, req BuildSavepoint
 	if err != nil {
 		return nil, err
 	}
-
+	if req.Cleanup {
+		defer os.Remove(dockerfilePath)
+	}
 	// Build
 	err = uc.Builder.Build(ctx, dockerfilePath, ".", tag)
 	if err != nil {
