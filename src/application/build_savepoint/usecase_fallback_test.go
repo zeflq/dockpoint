@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/zeflq/dockpoint/src/domain"
+	"github.com/zeflq/dockpoint/src/infrastructure/build"  // Add this import
 )
 
 // Fallback when no savepoint provided and none in file
@@ -23,7 +24,7 @@ func TestFallbackBuildsFullDockerfileIfNoSavepoints(t *testing.T) {
 
 	uc := NewBuildSavepointUseCase(
 		&emptyParser{},
-		&mockSlicer{},
+		build.NewDockerfileSlicer(),  // Use real slicer
 		&mockWriter{},
 		&mockBuilder{},
 		&mockChecker{},

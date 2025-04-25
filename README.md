@@ -57,6 +57,17 @@ dockpoint build-savepoint [savepoint?] --repo <repo> [--push] [--force]
 - Tags image as `<repo>:<savepoint>`
 - Pushes image if `--push`
 
+```bash
+# Local dev, no push
+dockpoint build-savepoint base
+
+# CI/CD: build and push
+dockpoint build-savepoint base --push
+
+# Simulate push, but don’t do anything
+dockpoint build-savepoint base --dry-run --push
+```
+
 ### ✅ `from-savepoint`
 Continue a Docker build from a previous savepoint:
 ```bash

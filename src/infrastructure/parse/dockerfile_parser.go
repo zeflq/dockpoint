@@ -3,6 +3,7 @@ package parse
 import (
 	"bufio"
 	"os"
+	"regexp"
 	"strings"
 
 	"github.com/zeflq/dockpoint/src/core/parse"
@@ -15,6 +16,8 @@ func NewDockerfileParser() parse.DockerfileParser {
 	return &DockerfileParserImpl{}
 }
 
+var isValidSavepoint = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
+
 func (p *DockerfileParserImpl) Parse(path string) ([]domain.Savepoint, error) {
 	file, err := os.Open(path)
 	if err != nil {
@@ -22,27 +25,59 @@ func (p *DockerfileParserImpl) Parse(path string) ([]domain.Savepoint, error) {
 	}
 	defer file.Close()
 
-	var savepoints []domain.Savepoint
-	var current *domain.Savepoint
-
 	scanner := bufio.NewScanner(file)
-	for i := 0; scanner.Scan(); i++ {
-		line := scanner.Text()
+	lines := []string{}
+	for scanner.Scan() {
+		lines = append(lines, scanner.Text())
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
 
-		if strings.HasPrefix(line, "# savepoint:") {
-			if current != nil {
-				current.EndLine = i - 1
-				savepoints = append(savepoints, *current)
-			}
-
-			name := strings.TrimSpace(strings.TrimPrefix(line, "# savepoint:"))
-			current = &domain.Savepoint{Name: name, StartLine: i}
+	fromLine := -1
+	for i, line := range lines {
+		if strings.HasPrefix(strings.ToUpper(strings.TrimSpace(line)), "FROM ") {
+			fromLine = i
+			break
 		}
 	}
-	if current != nil {
-		current.EndLine = -1 // unknown end (maybe till end-of-file)
-		savepoints = append(savepoints, *current)
+	if fromLine == -1 {
+		return nil, nil // invalid Dockerfile
 	}
 
-	return savepoints, scanner.Err()
+	savepoints := []domain.Savepoint{}
+	start := 0
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "# savepoint:") {
+			if i <= fromLine {
+				continue // ignore savepoints before FROM
+			}
+
+			name := strings.TrimSpace(strings.TrimPrefix(trimmed, "# savepoint:"))
+			if name == "" || !isValidSavepoint.MatchString(name) {
+				continue // skip malformed or invalid savepoint
+			}
+
+			if start <= i {
+				savepoints = append(savepoints, domain.Savepoint{
+					Name:      name,
+					StartLine: start,
+					EndLine:   i, // inclusive
+				})
+				start = i + 1
+			}
+		}
+	}
+
+	// Append trailing savepoint if lines remain after last savepoint
+	if start <= len(lines)-1 {
+		savepoints = append(savepoints, domain.Savepoint{
+			Name:      "final",
+			StartLine: start,
+			EndLine:   len(lines) - 1,
+		})
+	}
+
+	return savepoints, nil
 }

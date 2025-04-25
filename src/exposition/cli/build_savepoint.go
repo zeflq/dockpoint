@@ -33,17 +33,19 @@ Example:
 		push, _ := cmd.Flags().GetBool("push")
 		dryRun, _ := cmd.Flags().GetBool("dry-run")
 		cleanup, _ := cmd.Flags().GetBool("cleanup")
+		tagOverride, _ := cmd.Flags().GetString("tag")
 
 		// Build DTO
 		req := build_savepoint.BuildSavepointRequest{
-			Savepoint: savepoint,
-			Force:     force,
-			Push:      push,
-			DryRun:    dryRun,
-			FilePath:  filePath,
-			Cleanup:   cleanup,
+			Savepoint:   savepoint,
+			Force:       force,
+			Push:        push,
+			DryRun:      dryRun,
+			FilePath:    filePath,
+			Cleanup:     cleanup,
+			TagOverride: tagOverride,
 		}
-	
+
 		// Inject all dependencies (manual wiring for now)
 		usecase := build_savepoint.NewBuildSavepointUseCase(
 			parse.NewDockerfileParser(),
@@ -54,7 +56,7 @@ Example:
 			registry.NewImagePusher(),
 			config.NewConfigReader(),
 		)
-	
+
 		// Call the use case
 		ctx := context.Background()
 		result, err := usecase.Execute(ctx, req)
@@ -62,20 +64,7 @@ Example:
 			fmt.Println("❌ Error:", err)
 			os.Exit(1)
 		}
-	
-		// Output result
-		if result.Skipped {
-			fmt.Println("⏭️ Skipped: image already exists")
-		} else {
-			fmt.Println("✅ Build complete:", result.Tag)
-		}
-	
-		if dryRun {
-			fmt.Println("📝 Generated Dockerfile preview:")
-			fmt.Println("================================")
-			fmt.Println(result.DockerfileOut)
-			fmt.Println("================================")
-		}		
+		_ = result
 	},
 }
 
@@ -85,6 +74,7 @@ func init() {
 	buildSavepointCmd.Flags().Bool("dry-run", false, "Skip build, just output the generated Dockerfile")
 	buildSavepointCmd.Flags().StringP("file", "f", "", "Path to the Dockerfile (default: Dockerfile)")
 	buildSavepointCmd.Flags().Bool("cleanup", false, "Remove temporary Dockerfile after building")
+	buildSavepointCmd.Flags().String("tag", "", "Override tag for final image (used only in --build-all mode)")
 
 	// ✅ Register the command to rootCmd
 	rootCmd.AddCommand(buildSavepointCmd)

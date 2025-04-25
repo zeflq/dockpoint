@@ -1,2 +1,3 @@
 .dockpointrc.json
 .dockpoint/tmp/
+coverage.*
