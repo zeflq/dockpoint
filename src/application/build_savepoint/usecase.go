@@ -141,10 +141,18 @@ func (uc *BuildSavepointUseCase) buildOneWithTag(
 			finalLines = append([]string{fmt.Sprintf("FROM %s", req.BaseImage)}, sliced...)
 	}
 
+	dockerfileContent := strings.Join(finalLines, "\n")
+
 	if req.DryRun {
+			fmt.Println("📝 Dry-run preview:")
+			fmt.Println("====================================")
+			fmt.Printf("▶ %s:\n", finalTag)
+			fmt.Println(dockerfileContent)
+			fmt.Println("------------------------------------")
+			fmt.Println("====================================")
 			return &BuildSavepointResult{
 					Tag:           finalTag,
-					DockerfileOut: strings.Join(finalLines, "\n"),
+					DockerfileOut: dockerfileContent,
 					Skipped:       true,
 			}, nil
 	}
@@ -166,9 +174,7 @@ func (uc *BuildSavepointUseCase) buildOneWithTag(
 			fmt.Printf("❌ Failed to write temporary Dockerfile: %v\n", err)
 			return nil, err
 	}
-
 	defer os.Remove(dockerfilePath)
-	fmt.Printf("🧹 Cleaning up temporary Dockerfile: %s\n", dockerfilePath)
 
 	fmt.Printf("🔨 Building: %s\n", finalTag)
 	err = uc.Builder.Build(ctx, dockerfilePath, ".", finalTag)
