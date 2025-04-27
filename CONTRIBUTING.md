@@ -1,80 +1,114 @@
-# Contributing to dockpoint
+# 📑 Contributing to Dockpoint
 
-Welcome to the dockpoint CLI project! This document outlines the standards and folder structure we follow based on Clean Architecture principles, adapted to a Go CLI tool using Cobra.
-
----
-
-## 📁 Folder Structure (Clean Architecture)
-
-```
-src/
-├── application/         # Use cases (orchestrate domain logic via interfaces)
-├── domain/              # Core domain entities and business rules
-├── core/                # Shared interfaces, config, error types
-├── infrastructure/      # External services: Docker, filesystem, registry, etc.
-├── exposition/cli/      # CLI interface layer using Cobra
-└── bootstrap/           # Main entry point and app wiring
-
-src/
-├── application/
-│   ├── build_savepoint/
-│   │   ├── usecase.go
-│   │   ├── dto.go        <-- BuildSavepointRequest & Result
-│   │   └── usecase_test.go
-├── exposition/
-│   └── cli/
-│       ├── root.go
-│       ├── docker_list.go      # CLI adapter (calls usecase)
-│       └── formatter.go        # CLI-specific output formatting
-
-```
+Thank you for your interest in improving **Dockpoint**! 🚀  
+We welcome contributions to make Dockpoint the best savepoint-aware Docker builder.
 
 ---
 
-## 🔄 Responsibilities by Layer
+## 📚 Code of Conduct
 
-| Layer              | Description                                                  | Can Import From                |
-|--------------------|--------------------------------------------------------------|--------------------------------|
-| `domain/`          | Domain models, value objects, business logic                 | Nothing                        |
-| `application/`     | Use case logic, coordinates domain and interfaces            | `domain/`, `core/`             |
-| `core/`            | Interfaces and shared utilities (e.g., config, error types)  | Nothing                        |
-| `infrastructure/`  | Implements `core` interfaces (e.g., Docker, file parsing)    | `core/`                        |
-| `exposition/cli/`  | CLI layer: cobra commands and CLI input handling            | `application/`, `core/`        |
-| `bootstrap/`       | Entry point, CLI init, dependency injection                 | All except `infrastructure/`   |
+Be respectful, professional, and positive in discussions.  
+We value clear communication and clean collaboration.
 
 ---
 
-## 🧩 Guidelines for Contributions
+## 🏗 Project Architecture
+
+Dockpoint follows **Clean Architecture** with clear separation of responsibilities:
+
+| Layer              | Responsibility                                 |
+|--------------------|-------------------------------------------------|
+| `domain/`          | Entities and value objects                     |
+| `application/`     | Use cases (business logic)                      |
+| `core/`            | Shared interfaces, DTOs, types                 |
+| `infrastructure/`  | Implementations: Docker, filesystem, registry   |
+| `exposition/cli/`  | Cobra CLI commands                              |
+| `bootstrap/`       | Entry point (`main.go`)                         |
+
+---
+
+## 🧰 How to Set Up Locally
+
+1. Install [Go 1.22+](https://golang.org/dl/)
+2. Install [Docker](https://docs.docker.com/get-docker/)
+3. Clone the repository:
+
+    ```bash
+    git clone https://github.com/your-org/dockpoint.git
+    cd dockpoint
+    ```
+
+4. Build and test:
+
+    ```bash
+    go build ./...
+    go test ./...
+    ```
+
+---
+
+## 🛠 Contribution Guidelines
 
 ### ✅ General Rules
-- Keep each layer pure and focused.
-- Never let `application` or `domain` import from `infrastructure`.
-- All I/O must go through interfaces in `core/` and be implemented in `infrastructure/`.
-- CLI commands should only convert CLI inputs into DTOs and call `application/` logic.
 
-### ✅ When Adding a Command (e.g., `build-savepoint`)
-- **CLI binding**: `exposition/cli/build_savepoint.go`
-- **Use case**: `application/build_savepoint.go`
-- **Entities**: If needed, `domain/savepoint.go`
-- **Interfaces**: Define in `core/`, like `DockerBuilder`
-- **Implementation**: In `infrastructure/`, like `docker/docker_builder.go`
+- Small, focused PRs — solve one problem at a time.
+- Use interfaces inside `application/`.
+- Never tie business logic directly to Docker SDK, filesystem, or CLI input.
+- No I/O inside `application/` — move it to `infrastructure/`.
+- Use DTOs only between CLI and UseCases (`core/dto`).
+- No third-party libraries unless necessary (e.g., logging).
+- Write clean, readable code following Go best practices.
 
-### ✅ Testing
-- Use dependency injection to allow mocking in tests.
-- Unit test `application/` logic in isolation.
-- No `os.Exit`, `fmt.Println`, or I/O in `application/` or `domain/`.
+### 📋 Before You Open a Pull Request
+
+- Update or add unit tests if you touch `application/` or `infrastructure/` logic.
+- Ensure all tests pass:
+
+    ```bash
+    go test ./...
+    ```
+
+- Format your code:
+
+    ```bash
+    go fmt ./...
+    ```
+
+- Update `README.md`, `CHANGELOG.md`, or `CONTRIBUTING.md` if necessary.
+- For major changes, open an Issue first to discuss design.
 
 ---
 
-## 🧪 Sample Prompt for AI Tools
+## 🧪 Tests
 
-```
-You are working inside a clean architecture Go project with the following folders: application/, domain/, core/, infrastructure/, exposition/cli/, bootstrap/.
+Write unit tests for:
 
-Implement the command `build-savepoint`:
-- Put Cobra CLI command in `exposition/cli/build_savepoint.go`
-- Use case orchestration in `application/build_savepoint.go`
-- Define entities in `domain/` if needed
-- Use interfaces defined in `core/`
-- Implement Docker logic in `infrastructure/docker/`
+- Parsers
+- Slicers
+- Builders
+- Registry checkers
+
+We aim for high confidence in core behavior (especially `build-savepoint`).
+
+Use Go’s built-in `testing` package:
+
+```go
+import "testing"
 ```
+# 📦 Feature Branch Naming
+
+Use clear branch names:
+
+```bash
+feature/build-multi-savepoint
+fix/registry-tag-exists
+refactor/cleanup-cli-parsing
+doc/update-readme
+```
+
+# 📦 How to Submit a Contribution
+- Fork the repo.
+- Create your feature branch.
+- Commit your changes.
+- Push to your branch.
+- Open a Pull Request (PR) into main.

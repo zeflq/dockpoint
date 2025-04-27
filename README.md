@@ -1,29 +1,36 @@
-# 📘 dockpoint
+# 📘 Dockpoint
 
-dockpoint is a **savepoint-aware Docker build CLI** tool that enables efficient and incremental Docker builds using inline savepoints in your Dockerfile. It's designed for CI/CD pipelines, DevOps engineers, and platform teams who manage Dockerized monorepos.
+**Dockpoint** is a savepoint-aware Docker build CLI tool that enables efficient and incremental Docker builds using inline savepoints inside your Dockerfile.
+
+It’s designed for CI/CD pipelines, DevOps engineers, and platform teams managing Dockerized monorepos.
 
 ---
 
 ## 🎯 Purpose
+
 - Build Dockerfiles incrementally using savepoints
-- Reuse previously built image layers via registry cache
-- Speed up CI/CD pipelines and reduce build time
+- Reuse previously built layers using savepoints and registry caching
+- Speed up CI/CD pipelines dramatically
+- Generate smarter cache tags based on build context
 
 ---
 
-## 🧭 Target Users
+## 🛍️ Target Users
+
 - CI/CD Pipelines
 - DevOps Engineers
-- Backend Developers
-- Platform Teams with Docker Monorepos
+- Platform Engineering Teams
+- Backend Developers with complex Dockerfiles
 
 ---
 
 ## 🔑 Core Concepts
 
-### 🔹 Savepoints
-Savepoints are named inline comments in the Dockerfile:
-```Dockerfile
+### Savepoints
+
+Savepoints are inline markers in your Dockerfile:
+
+```dockerfile
 # savepoint: base
 FROM node:20
 
@@ -31,130 +38,124 @@ FROM node:20
 COPY package*.json ./
 RUN npm ci
 ```
-Each becomes a tag like:
-```
-ghcr.io/org/service:deps
+
+Each savepoint becomes a buildable/taggable image layer, enabling incremental builds.
+
+### Full Target Images (`-t repo/image:tag`)
+
+You must specify a full `repo/image:tag` via the `-t` flag:
+
+Example:
+
+```bash
+# Build and tag savepoints
+ dockpoint build-savepoint -t docker.io/myuser/myapp:1.1.2
 ```
 
-### 🔹 .dockpointrc.json
-Project-level configuration for base repo:
-```json
-{
-  "repo": "ghcr.io/org/service"
-}
-```
+Inner savepoints will be tagged like `docker.io/myuser/myapp:base`, `:deps`, etc.
+
+The final savepoint will be tagged `docker.io/myuser/myapp:1.1.2`.
 
 ---
 
 ## 🧪 Features & Commands
 
-### ✅ `build-savepoint`
-Build a specific or all savepoints:
-```bash
-dockpoint build-savepoint [savepoint?] --repo <repo> [--push] [--force]
-```
-- Skips builds if tag exists (unless `--force`)
-- Tags image as `<repo>:<savepoint>`
-- Pushes image if `--push`
+### `build-savepoint`
+
+Build all savepoints or only one:
 
 ```bash
-# Local dev, no push
-dockpoint build-savepoint base
+# Build and tag all savepoints
+dockpoint build-savepoint -t docker.io/myuser/myapp:1.1.2
 
-# CI/CD: build and push
-dockpoint build-savepoint base --push
+# Build and push
+dockpoint build-savepoint -t docker.io/myuser/myapp:1.1.2 --push
 
-# Simulate push, but don’t do anything
-dockpoint build-savepoint base --dry-run --push
-```
+# Build only a specific savepoint
+dockpoint build-savepoint deps -t docker.io/myuser/myapp:1.1.2
 
-### ✅ `from-savepoint`
-Continue a Docker build from a previous savepoint:
-```bash
-dockpoint from-savepoint <savepoint> --tag <output-tag> --repo <repo>
-```
-
-### ✅ `validate`
-Validate Dockerfile and `.dockpointrc.json`:
-```bash
-dockpoint validate
-```
-
-### ✅ `list`
-List all savepoints and resolved image tags:
-```bash
-dockpoint list --repo <repo>
+# Dry-run (simulate builds, no Docker actions)
+dockpoint build-savepoint -t docker.io/myuser/myapp:1.1.2 --dry-run
 ```
 
 ---
 
-## 🛠 Project Architecture
+## 🔐 Smarter Caching (Optional)
 
-This project uses **Clean Architecture** adapted for Go CLI tooling with Cobra:
+For full context-based caching, hash your full build context before building:
 
-### 📁 Folder Layout
+```bash
+HASH=$(find . -type f -not -path './.git/*' -exec sha256sum {} + | sort | sha256sum | awk '{print $1}')
+
+docker build -t my-repo/service/my-app:1.0.0.$HASH .
+docker push my-repo/service/my-app:1.0.0.$HASH
 ```
+
+- ✅ Ensures that any change in any file will regenerate a new image tag.
+- ✅ 100% reliable for CI/CD systems.
+
+---
+
+## 🛠️ Project Architecture
+
+This project follows **Clean Architecture** adapted for Go CLI applications.
+
+### Folder Layout
+
+```bash
 src/
 ├── application/         # Use cases
-├── domain/              # Core business logic
-├── core/                # Shared types/interfaces/config
-├── infrastructure/      # External services: Docker, FS, registry
-├── exposition/cli/      # CLI interface (Cobra commands)
-└── bootstrap/           # Entry point and CLI wiring
+├── domain/              # Domain entities
+├── core/                # Shared interfaces and DTOs
+├── infrastructure/      # Docker, registry, filesystem adapters
+├── exposition/cli/      # Cobra commands
+└── bootstrap/           # CLI entrypoint (main.go)
 ```
 
-### ✅ Contribution Rules
-- Use interfaces for all infrastructure (e.g., Docker, registry)
-- All I/O in `infrastructure/`, never in `application/`
-- Use DTOs between CLI and use cases
+### ✅ Design Principles
 
-See [CONTRIBUTING.md](./CONTRIBUTING.md) for full architectural instructions.
+- Separate Domain, UseCases, Infrastructure, and CLI wiring
+- All I/O done in infrastructure
+- Business rules only depend on interfaces
+- DTOs between CLI and UseCases
+- Clean testable architecture
 
----
-
-## 🔐 Registry Caching Logic
-| Condition             | Behavior        |
-|----------------------|-----------------|
-| Tag exists           | Skip build      |
-| Tag doesn't exist    | Build & tag     |
-| `--force` is set     | Always rebuild  |
+See [CONTRIBUTING.md](CONTRIBUTING.md) for full contribution guide.
 
 ---
 
 ## 🚀 Roadmap
-| Epic              | Feature          | CLI Command       |
-|------------------|------------------|-------------------|
-| Savepoint builds | Build to step    | `build-savepoint` |
-| Incremental build| Resume from step | `from-savepoint`  |
-| Validation        | Validate config  | `validate`        |
-| Visibility        | List savepoints  | `list`            |
 
----
-polish & infrastructure
-🧰 Add:
-dockpoint init to scaffold .dockpointrc.json
-
-dockpoint config show or edit
-
-🔒 Add:
-Logging (log pkg or zap)
-
-Verbosity control via --verbose
+| Epic | Feature | Status |
+|:---|:---|:---|
+| Savepoint builds | Build and tag savepoints | ✅ Done |
+| Smarter Caching | Full context hash caching |📋 Planned |
+| Verbosity Control | Add `--verbose` mode | 📋 Planned |
+| Structured Logging | Zap or Logrus integration | 📋 Planned |
 
 ---
 
-## 🧱 Technologies
+## 🔗 Technologies
+
 - Go 1.22+
 - Cobra CLI
-- Docker Engine
+- Docker Engine API (CLI-level)
+- Clean Architecture Design
 
 ---
 
 ## 👥 Contributing
-Want to help improve `dockpoint`? Check out the [CONTRIBUTING.md](./CONTRIBUTING.md) for setup, architecture, and best practices.
+
+Want to help improve Dockpoint? 🚀
+
+Check out the [CONTRIBUTING.md](CONTRIBUTING.md) for setup instructions, coding conventions, and architecture.
+
+- PRs welcome!
+- Please respect Clean Architecture guidelines.
 
 ---
 
 ## 📄 License
-MIT © 2025 — Happy building!
+
+MIT © 2025 — **Build fast, build smart, with Dockpoint!** 🚀
 
