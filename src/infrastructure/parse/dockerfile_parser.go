@@ -2,9 +2,11 @@ package parse
 
 import (
 	"bufio"
+	"fmt"
 	"os"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/zeflq/dockpoint/src/core/parse"
 	"github.com/zeflq/dockpoint/src/domain"
@@ -17,6 +19,11 @@ func NewDockerfileParser() parse.DockerfileParser {
 }
 
 var isValidSavepoint = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
+
+func generateFinalSavepointName() string {
+	timestamp := time.Now().Unix()
+	return fmt.Sprintf("final-%d", timestamp)
+}
 
 func (p *DockerfileParserImpl) Parse(path string) ([]domain.Savepoint, error) {
 	file, err := os.Open(path)
@@ -73,7 +80,7 @@ func (p *DockerfileParserImpl) Parse(path string) ([]domain.Savepoint, error) {
 	// Append trailing savepoint if lines remain after last savepoint
 	if start <= len(lines)-1 {
 		savepoints = append(savepoints, domain.Savepoint{
-			Name:      "final",
+			Name:      generateFinalSavepointName(),
 			StartLine: start,
 			EndLine:   len(lines) - 1,
 		})

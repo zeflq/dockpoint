@@ -33,7 +33,7 @@ func TestUsesCorrectFilePathFromCLI(t *testing.T) {
 	parser := &parserSpy{}
 	slicer := &dummySlicer{}
 
-	uc := NewBuildSavepointUseCase(parser, slicer, &mockWriter{}, &mockBuilder{}, &mockChecker{}, &mockPusher{})
+	uc := NewBuildSavepointUseCase(parser, slicer, &mockWriter{}, &mockBuilder{}, &mockChecker{}, &mockPusher{}, &mockValidator{})
 
 	_, err := uc.Execute(context.Background(), BuildSavepointRequest{
 		FilePath:   customFile,
@@ -53,7 +53,7 @@ func TestDefaultsToDockerfileInCurrentDir(t *testing.T) {
 	_ = os.WriteFile("Dockerfile", []byte("FROM alpine"), 0644)
 
 	parser := &parserSpy{}
-	uc := NewBuildSavepointUseCase(parser, &dummySlicer{}, &mockWriter{}, &mockBuilder{}, &mockChecker{}, &mockPusher{})
+	uc := NewBuildSavepointUseCase(parser, &dummySlicer{}, &mockWriter{}, &mockBuilder{}, &mockChecker{}, &mockPusher{}, &mockValidator{})
 
 	_, err := uc.Execute(context.Background(), BuildSavepointRequest{
 		Savepoint:  "base",

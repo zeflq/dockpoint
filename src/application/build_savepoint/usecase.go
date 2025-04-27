@@ -21,6 +21,10 @@ type BuildSavepointUseCase struct {
 	Builder docker.DockerBuilder
 	Checker registry.ImageChecker
 	Pusher  registry.ImagePusher
+	Validator domain.SavepointValidator
+}
+type BuildSavepointResultList struct {
+	Results []*BuildSavepointResult
 }
 
 func NewBuildSavepointUseCase(
@@ -30,6 +34,7 @@ func NewBuildSavepointUseCase(
 	builder docker.DockerBuilder,
 	checker registry.ImageChecker,
 	pusher registry.ImagePusher,
+	validator domain.SavepointValidator,
 ) *BuildSavepointUseCase {
 	return &BuildSavepointUseCase{
 		Parser:  parser,
@@ -38,10 +43,11 @@ func NewBuildSavepointUseCase(
 		Builder: builder,
 		Checker: checker,
 		Pusher:  pusher,
+		Validator: validator,
 	}
 }
 
-func (uc *BuildSavepointUseCase) Execute(ctx context.Context, req BuildSavepointRequest) (*BuildSavepointResult, error) {
+func (uc *BuildSavepointUseCase) Execute(ctx context.Context, req BuildSavepointRequest) (*BuildSavepointResultList, error) {
 	if req.FilePath == "" {
 			req.FilePath = "Dockerfile"
 	}
@@ -76,6 +82,10 @@ func (uc *BuildSavepointUseCase) Execute(ctx context.Context, req BuildSavepoint
 	if err != nil {
 			return nil, err
 	}
+	
+	if err := uc.Validator.Validate(savepoints); err != nil {
+		return nil, err
+	}
 
 	if len(savepoints) == 0 {
 			// No savepoints: build full Dockerfile
@@ -85,12 +95,20 @@ func (uc *BuildSavepointUseCase) Execute(ctx context.Context, req BuildSavepoint
 					EndLine:   9999,
 			}
 			finalTag := fmt.Sprintf("%s:%s", imageRepo, baseTag)
-			return uc.buildOneWithTag(ctx, fullSavepoint, req, finalTag)
+			res, err := uc.buildOneWithTag(ctx, fullSavepoint, req, finalTag)
+			if err != nil {
+				return nil, err
+			}
+			return &BuildSavepointResultList{Results: []*BuildSavepointResult{res}}, nil
 	}
 
 	if req.Savepoint == "" {
 			// Build all savepoints
-			return uc.handleBuildAll(ctx, savepoints, req, imageRepo, baseTag)
+			results, err := uc.handleBuildAll(ctx, savepoints, req, imageRepo, baseTag)
+			if err != nil {
+				return nil, err
+			}
+			return &BuildSavepointResultList{Results: results}, nil
 	}
 
 	// Build specific savepoint
@@ -114,7 +132,13 @@ func (uc *BuildSavepointUseCase) Execute(ctx context.Context, req BuildSavepoint
 			req.BaseImage = fmt.Sprintf("%s:%s", imageRepo, savepoints[targetIndex-1].Name)
 	}
 
-	return uc.buildOneWithTag(ctx, *target, req, finalTag)
+	res, err := uc.buildOneWithTag(ctx, *target, req, finalTag)
+	if err != nil {
+		return nil, err
+	}
+
+	return &BuildSavepointResultList{Results: []*BuildSavepointResult{res}}, nil
+	
 }
 
 
@@ -144,12 +168,12 @@ func (uc *BuildSavepointUseCase) buildOneWithTag(
 	dockerfileContent := strings.Join(finalLines, "\n")
 
 	if req.DryRun {
-			fmt.Println("📝 Dry-run preview:")
-			fmt.Println("====================================")
-			fmt.Printf("▶ %s:\n", finalTag)
-			fmt.Println(dockerfileContent)
-			fmt.Println("------------------------------------")
-			fmt.Println("====================================")
+			// fmt.Println("📝 Dry-run preview:")
+			// fmt.Println("====================================")
+			// fmt.Printf("▶ %s:\n", finalTag)
+			// fmt.Println(dockerfileContent)
+			// fmt.Println("------------------------------------")
+			// fmt.Println("====================================")
 			return &BuildSavepointResult{
 					Tag:           finalTag,
 					DockerfileOut: dockerfileContent,
@@ -202,9 +226,8 @@ func (uc *BuildSavepointUseCase) handleBuildAll(
 	req BuildSavepointRequest,
 	imageRepo string,
 	baseTag string,
-) (*BuildSavepointResult, error) {
-	var previews []string
-	var lastResult *BuildSavepointResult
+) ([]*BuildSavepointResult, error) {
+	var results []*BuildSavepointResult
 
 	for i, sp := range savepoints {
 			currentReq := req
@@ -228,22 +251,8 @@ func (uc *BuildSavepointUseCase) handleBuildAll(
 					fmt.Printf("⚠️  Error building savepoint %s: %v\n", sp.Name, err)
 					continue
 			}
-			lastResult = res
-
-			if req.DryRun {
-					previews = append(previews, fmt.Sprintf("▶ %s:\n%s\n", res.Tag, res.DockerfileOut))
-			}
+			results = append(results, res)
 	}
 
-	if req.DryRun && len(previews) > 0 {
-			fmt.Println("📝 Dry-run preview of all savepoints:")
-			fmt.Println("====================================")
-			for _, p := range previews {
-					fmt.Println(p)
-					fmt.Println("------------------------------------")
-			}
-			fmt.Println("====================================")
-	}
-
-	return lastResult, nil
+	return results, nil
 }

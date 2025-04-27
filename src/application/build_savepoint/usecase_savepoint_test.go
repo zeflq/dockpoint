@@ -36,7 +36,7 @@ func TestSavepointNotFound(t *testing.T) {
 		{Name: "deps", StartLine: 0, EndLine: 1},
 	}}
 
-	uc := NewBuildSavepointUseCase(parser, &mockSlicer{}, &mockWriter{}, &mockBuilder{}, &mockChecker{}, &mockPusher{})
+	uc := NewBuildSavepointUseCase(parser, &mockSlicer{}, &mockWriter{}, &mockBuilder{}, &mockChecker{}, &mockPusher{},&mockValidator{})
 
 	_, err := uc.Execute(context.Background(), BuildSavepointRequest{
 		Savepoint:  "base",
@@ -54,15 +54,16 @@ func TestValidSavepoint(t *testing.T) {
 		{Name: "base", StartLine: 0, EndLine: 0},
 	}}
 
-	uc := NewBuildSavepointUseCase(parser, &mockSlicer{}, &mockWriter{}, &mockBuilder{}, &mockChecker{}, &mockPusher{})
+	uc := NewBuildSavepointUseCase(parser, &mockSlicer{}, &mockWriter{}, &mockBuilder{}, &mockChecker{}, &mockPusher{}, &mockValidator{})
 
-	result, err := uc.Execute(context.Background(), BuildSavepointRequest{
+	results, err := uc.Execute(context.Background(), BuildSavepointRequest{
 		Savepoint:  "base",
 		DryRun:     true,
 		FilePath:   "Dockerfile",
 		FullTarget: "docker.io/user/app:latest",
 	})
 	assert.NoError(t, err)
+	result := results.Results[0]
 	assert.Equal(t, "docker.io/user/app:base", result.Tag)
 }
 
@@ -79,7 +80,7 @@ func TestSavepointInvalidRange(t *testing.T) {
 		{Name: "base", StartLine: 3, EndLine: 1}, // invalid range
 	}}
 
-	uc := NewBuildSavepointUseCase(parser, &slicerWithError{}, &mockWriter{}, &mockBuilder{}, &mockChecker{}, &mockPusher{})
+	uc := NewBuildSavepointUseCase(parser, &slicerWithError{}, &mockWriter{}, &mockBuilder{}, &mockChecker{}, &mockPusher{},&mockValidator{})
 
 	_, err := uc.Execute(context.Background(), BuildSavepointRequest{
 		Savepoint:  "base",
@@ -98,9 +99,9 @@ func TestEmptySavepointStillReturnsEmptySlicedDockerfile(t *testing.T) {
 
 	slicer := &mockSlicer{} // Returns non-error slice even if empty range
 
-	uc := NewBuildSavepointUseCase(parser, slicer, &mockWriter{}, &mockBuilder{}, &mockChecker{}, &mockPusher{})
+	uc := NewBuildSavepointUseCase(parser, slicer, &mockWriter{}, &mockBuilder{}, &mockChecker{}, &mockPusher{},&mockValidator{})
 
-	result, err := uc.Execute(context.Background(), BuildSavepointRequest{
+	results, err := uc.Execute(context.Background(), BuildSavepointRequest{
 		Savepoint:  "empty",
 		DryRun:     true,
 		FilePath:   "Dockerfile",
@@ -108,6 +109,7 @@ func TestEmptySavepointStillReturnsEmptySlicedDockerfile(t *testing.T) {
 	})
 
 	assert.NoError(t, err)
+	result := results.Results[0]
 	assert.True(t, result.Skipped)
 	assert.Equal(t, "docker.io/user/app:empty", result.Tag)
 }

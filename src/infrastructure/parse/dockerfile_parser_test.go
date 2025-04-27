@@ -29,7 +29,10 @@ RUN echo "world"`
 		assert.Equal(t, 3, len(savepoints))
 		assert.Equal(t, domain.Savepoint{Name: "base", StartLine: 0, EndLine: 1}, savepoints[0])
 		assert.Equal(t, domain.Savepoint{Name: "deps", StartLine: 2, EndLine: 3}, savepoints[1])
-		assert.Equal(t, domain.Savepoint{Name: "final", StartLine: 4, EndLine: 5}, savepoints[2])
+		// Check final savepoint structure but not exact name
+		assert.Contains(t, savepoints[2].Name, "final-")
+		assert.Equal(t, 4, savepoints[2].StartLine)
+		assert.Equal(t, 5, savepoints[2].EndLine)
 	})
 
 	t.Run("savepoints before FROM are ignored", func(t *testing.T) {
@@ -48,7 +51,10 @@ RUN echo "hello"`
 		assert.NoError(t, err)
 		assert.Equal(t, 2, len(savepoints))
 		assert.Equal(t, domain.Savepoint{Name: "base", StartLine: 0, EndLine: 2}, savepoints[0])
-		assert.Equal(t, domain.Savepoint{Name: "final", StartLine: 3, EndLine: 3}, savepoints[1])
+		// Check final savepoint structure but not exact name
+		assert.Contains(t, savepoints[1].Name, "final-")
+		assert.Equal(t, 3, savepoints[1].StartLine)
+		assert.Equal(t, 3, savepoints[1].EndLine)
 	})
 
 	t.Run("malformed savepoint is ignored", func(t *testing.T) {
@@ -65,7 +71,10 @@ RUN echo "hello"`
 
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(savepoints))
-		assert.Equal(t, domain.Savepoint{Name: "final", StartLine: 0, EndLine: 2}, savepoints[0])
+		// Check final savepoint structure but not exact name
+		assert.Contains(t, savepoints[0].Name, "final-")
+		assert.Equal(t, 0, savepoints[0].StartLine)
+		assert.Equal(t, 2, savepoints[0].EndLine)
 	})
 
 	t.Run("multiple FROM instructions use first one", func(t *testing.T) {
@@ -87,7 +96,10 @@ COPY --from=builder /app /app`
 		assert.Equal(t, 3, len(savepoints))
 		assert.Equal(t, domain.Savepoint{Name: "build", StartLine: 0, EndLine: 1}, savepoints[0])
 		assert.Equal(t, domain.Savepoint{Name: "runtime", StartLine: 2, EndLine: 4}, savepoints[1])
-		assert.Equal(t, domain.Savepoint{Name: "final", StartLine: 5, EndLine: 5}, savepoints[2])
+		// Check final savepoint structure but not exact name
+		assert.Contains(t, savepoints[2].Name, "final-")
+		assert.Equal(t, 5, savepoints[2].StartLine)
+		assert.Equal(t, 5, savepoints[2].EndLine)
 	})
 
 	t.Run("line numbers after FROM", func(t *testing.T) {
@@ -105,10 +117,10 @@ RUN echo "hello"`
 
 		assert.NoError(t, err)
 		assert.Equal(t, 2, len(savepoints))
-		// StartLine is 1 because it starts from the FROM instruction
 		assert.Equal(t, domain.Savepoint{Name: "base", StartLine: 0, EndLine: 2}, savepoints[0])
-		assert.Equal(t, domain.Savepoint{Name: "final", StartLine: 3, EndLine: 3}, savepoints[1])
+		// Check final savepoint structure but not exact name
+		assert.Contains(t, savepoints[1].Name, "final-")
+		assert.Equal(t, 3, savepoints[1].StartLine)
+		assert.Equal(t, 3, savepoints[1].EndLine)
 	})
-
-	// Keep existing empty file and non-existent file tests as they are correct
 }

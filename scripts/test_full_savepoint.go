@@ -9,6 +9,7 @@ import (
 	"github.com/zeflq/dockpoint/src/infrastructure/docker"
 	"github.com/zeflq/dockpoint/src/infrastructure/parse"
 	"github.com/zeflq/dockpoint/src/infrastructure/registry"
+	"github.com/zeflq/dockpoint/src/infrastructure/validator"
 )
 func TestFullBuildSavepointFlow() {
 	fmt.Println("🔁 Testing build-savepoint end-to-end")
@@ -22,6 +23,7 @@ func TestFullBuildSavepointFlow() {
 		docker.NewDockerBuilder(),
 		registry.NewImageChecker(),
 		registry.NewImagePusher(),
+		validator.NewSavepointValidator(),
 	)
 	dryRun := true
 	req := build_savepoint.BuildSavepointRequest{
@@ -31,12 +33,13 @@ func TestFullBuildSavepointFlow() {
 		DryRun:    dryRun,
 	}
 
-	result, err := usecase.Execute(ctx, req)
+	results, err := usecase.Execute(ctx, req)
 	if err != nil {
 		fmt.Println("❌ Error:", err)
 		return
 	}
 
+	result := results.Results[0]
 	if result.Skipped {
 		fmt.Println("⏭️ Image already exists:", result.Tag)
 	} else {

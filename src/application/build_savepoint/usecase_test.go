@@ -156,6 +156,7 @@ func TestUseCase_DryRun(t *testing.T) {
 				&mockBuilder{},
 				&mockChecker{},
 				&mockPusher{},
+				&mockValidator{},
 			)
 
 			req := BuildSavepointRequest{
@@ -165,7 +166,7 @@ func TestUseCase_DryRun(t *testing.T) {
 				FullTarget: tt.fullTarget,
 			}
 
-			result, err := usecase.Execute(context.Background(), req)
+			results, err := usecase.Execute(context.Background(), req)
 
 			if tt.wantError {
 				assert.Error(t, err)
@@ -176,6 +177,8 @@ func TestUseCase_DryRun(t *testing.T) {
 			}
 
 			assert.NoError(t, err)
+			assert.NotEmpty(t, results.Results)
+			result := results.Results[0]
 			assert.Equal(t, tt.wantSkipped, result.Skipped)
 			assert.Equal(t, tt.wantTag, result.Tag)
 			if tt.dryRun {

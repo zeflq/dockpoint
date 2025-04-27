@@ -61,6 +61,13 @@ func (s *simpleSlicer) Slice([]string, domain.Savepoint) ([]string, error) {
 	return []string{"FROM alpine"}, nil
 }
 
+// Add validator mock
+type mockValidator struct{}
+
+func (m *mockValidator) Validate(savepoints []domain.Savepoint) error {
+	return nil
+}
+
 func TestExecBuildPushPath(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -134,13 +141,14 @@ func TestExecBuildPushPath(t *testing.T) {
 				builder,
 				&alwaysFalseChecker{},
 				pusher,
+				&mockValidator{}, // Fixed: using correct validator mock
 			)
 
 			// Set filepath in request
 			tt.request.FilePath = dockerfile
 
 			// Execute
-			result, err := uc.Execute(context.Background(), tt.request)
+			results, err := uc.Execute(context.Background(), tt.request)
 
 			// Assert
 			if tt.wantError {
@@ -152,6 +160,7 @@ func TestExecBuildPushPath(t *testing.T) {
 			}
 
 			assert.NoError(t, err)
+			result := results.Results[0]
 			assert.False(t, result.Skipped)
 			assert.Equal(t, tt.wantTag, result.Tag)
 			assert.True(t, writer.Called)

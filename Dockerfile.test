@@ -1,9 +1,9 @@
-# savepoint: base0
+# savepoint: base
 FROM alpine:latest
 RUN echo "Hello from Dockpoint"
-# savepoint: base
-RUN echo "Hello from Dockpoint1"
 # savepoint: base2
-RUN echo "Hello from Dockpoint2"
+RUN echo "Hello from Dockpoint1"
 # savepoint: base3
+RUN echo "Hello from Dockpoint2"
+# savepoint: final
 RUN echo "Hello from Dockpoint3"

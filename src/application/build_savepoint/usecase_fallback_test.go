@@ -78,9 +78,10 @@ func TestFallbackBehavior(t *testing.T) {
 				&mockBuilder{},
 				&mockChecker{},
 				&mockPusher{},
+				&mockValidator{},
 			)
 
-			result, err := uc.Execute(context.Background(), BuildSavepointRequest{
+			results, err := uc.Execute(context.Background(), BuildSavepointRequest{
 				FilePath:   fullFile,
 				DryRun:     true,
 				FullTarget: tt.fullTarget,
@@ -95,6 +96,7 @@ func TestFallbackBehavior(t *testing.T) {
 			}
 
 			assert.NoError(t, err)
+			result := results.Results[0]
 			assert.True(t, result.Skipped)
 			assert.Equal(t, tt.expectedTag, result.Tag)
 			assert.Equal(t, tt.expectedOutput, result.DockerfileOut)

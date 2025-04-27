@@ -50,9 +50,10 @@ func TestTagExistsSkipsBuild(t *testing.T) {
 		&dummyDeps{},
 		&alwaysTagExists{},
 		&dummyDeps{},
+		&mockValidator{},
 	)
 
-	result, err := usecase.Execute(context.Background(), BuildSavepointRequest{
+	results, err := usecase.Execute(context.Background(), BuildSavepointRequest{
 		Savepoint:  "base",
 		Force:      false,
 		FilePath:   "Dockerfile",
@@ -60,6 +61,7 @@ func TestTagExistsSkipsBuild(t *testing.T) {
 	})
 
 	assert.NoError(t, err)
+	result := results.Results[0]
 	assert.True(t, result.Skipped)
 }
 
@@ -73,9 +75,10 @@ func TestForceIgnoresTag(t *testing.T) {
 		&dummyDeps{},
 		&alwaysTagExists{},
 		&dummyDeps{},
+		&mockValidator{},
 	)
 
-	result, err := usecase.Execute(context.Background(), BuildSavepointRequest{
+	results, err := usecase.Execute(context.Background(), BuildSavepointRequest{
 		Savepoint:  "base",
 		Force:      true,
 		FilePath:   "Dockerfile",
@@ -83,6 +86,7 @@ func TestForceIgnoresTag(t *testing.T) {
 	})
 
 	assert.NoError(t, err)
+	result := results.Results[0]
 	assert.False(t, result.Skipped)
 }
 
@@ -96,15 +100,17 @@ func TestTagNotExistsTriggersBuild(t *testing.T) {
 		&dummyDeps{},
 		&neverTagExists{},
 		&dummyDeps{},
+		&mockValidator{},
 	)
 
-	result, err := usecase.Execute(context.Background(), BuildSavepointRequest{
+	results, err := usecase.Execute(context.Background(), BuildSavepointRequest{
 		Savepoint:  "base",
 		FilePath:   "Dockerfile",
 		FullTarget: "docker.io/user/app:1.0",
 	})
 
 	assert.NoError(t, err)
+	result := results.Results[0]
 	assert.False(t, result.Skipped)
 }
 
@@ -147,6 +153,7 @@ func TestInvalidImageReference(t *testing.T) {
 				&dummyDeps{},
 				&neverTagExists{},
 				&dummyDeps{},
+				&mockValidator{},
 			)
 
 			_, err := usecase.Execute(context.Background(), BuildSavepointRequest{

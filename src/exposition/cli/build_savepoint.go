@@ -11,26 +11,29 @@ import (
 	"github.com/zeflq/dockpoint/src/infrastructure/docker"
 	"github.com/zeflq/dockpoint/src/infrastructure/parse"
 	"github.com/zeflq/dockpoint/src/infrastructure/registry"
+	"github.com/zeflq/dockpoint/src/infrastructure/validator"
 )
 
 var buildSavepointCmd = &cobra.Command{
-	Use:   "build-savepoint",
-	Short: "Incrementally build a Dockerfile up to savepoints",
+	Use:   "build-savepoint [savepoint]",
+	Short: "Incrementally build a Dockerfile up to a savepoint",
 	Long: `dockpoint build-savepoint builds a Dockerfile step-by-step based on savepoints defined inside the file.
 
 Each savepoint is a special comment like:
     # savepoint: mypoint
 
-By default, all savepoints are built sequentially.
-You must specify a full target image using -t in the format 'repo/image:tag'.
+You must specify the target image using the -t flag.
 
 Examples:
-  # Build and push all savepoints to Docker Hub
-  dockpoint build-savepoint -t docker.io/myuser/myapp:1.1.2 --push
 
-  # Build only one specific savepoint
-  dockpoint build-savepoint base -t docker.io/myuser/myapp:1.1.2
+  # Build and tag all savepoints
+  dockpoint build-savepoint -t docker.io/user/app:1.1.2
 
+  # Build and push
+  dockpoint build-savepoint -t docker.io/user/app:1.1.2 --push
+
+  # Build only a specific savepoint
+  dockpoint build-savepoint deps -t docker.io/user/app:1.1.2
 Flags:
   -t, --target       Full image reference to build (e.g., docker.io/user/app:1.1.2) [REQUIRED]
   --savepoint        Build only up to a specific savepoint name (optional)
@@ -49,11 +52,13 @@ Flags:
 		if filePath == "" {
 			filePath = "Dockerfile"
 		}
+
 		target, _ := cmd.Flags().GetString("target")
 		force, _ := cmd.Flags().GetBool("force")
 		push, _ := cmd.Flags().GetBool("push")
 		dryRun, _ := cmd.Flags().GetBool("dry-run")
 
+		// Build DTO
 		req := build_savepoint.BuildSavepointRequest{
 			Savepoint:  savepoint,
 			FilePath:   filePath,
@@ -70,25 +75,34 @@ Flags:
 			docker.NewDockerBuilder(),
 			registry.NewImageChecker(),
 			registry.NewImagePusher(),
+			validator.NewSavepointValidator(), // New validator
 		)
 
 		ctx := context.Background()
-		result, err := usecase.Execute(ctx, req)
+		resultList, err := usecase.Execute(ctx, req)
 		if err != nil {
 			fmt.Println("❌ Error:", err)
 			os.Exit(1)
 		}
-		_ = result
+
+		if req.DryRun && resultList != nil {
+			fmt.Println("📝 Dry-run preview:")
+			fmt.Println("====================================")
+			for _, r := range resultList.Results {
+				fmt.Printf("▶ %s:\n", r.Tag)
+				fmt.Println(r.DockerfileOut)
+				fmt.Println("------------------------------------")
+			}
+			fmt.Println("====================================")
+		}
 	},
 }
 
 func init() {
-	buildSavepointCmd.Flags().Bool("force", false, "Force rebuild even if image exists")
-	buildSavepointCmd.Flags().Bool("push", false, "Push image after build")
-	buildSavepointCmd.Flags().Bool("dry-run", false, "Skip build, just output the generated Dockerfile")
 	buildSavepointCmd.Flags().StringP("file", "f", "", "Path to the Dockerfile (default: Dockerfile)")
-	buildSavepointCmd.Flags().StringP("target", "t", "", "Full image name (e.g., docker.io/user/app:1.1.2)")
-
-	// ✅ Register the command to rootCmd
+	buildSavepointCmd.Flags().StringP("target", "t", "", "Full image target (repo/image:tag)")
+	buildSavepointCmd.Flags().Bool("force", false, "Force rebuild even if tag exists")
+	buildSavepointCmd.Flags().Bool("push", false, "Push image after build")
+	buildSavepointCmd.Flags().Bool("dry-run", false, "Only simulate the build, do not actually build")
 	rootCmd.AddCommand(buildSavepointCmd)
 }
