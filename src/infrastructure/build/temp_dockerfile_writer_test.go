@@ -76,7 +76,6 @@ func TestTempDockerfileWriterImpl_Write(t *testing.T) {
 			expectedFilename := filepath.Join(".dockpoint/tmp", ".dockpoint.Dockerfile."+tt.savepoint)
 			assert.Equal(t, expectedFilename, gotPath)
 			
-			// Cleanup
 			os.Remove(gotPath)
 		})
 	}

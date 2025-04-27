@@ -50,19 +50,19 @@ func TestTagExistsSkipsBuild(t *testing.T) {
 		&dummyDeps{},
 		&alwaysTagExists{},
 		&dummyDeps{},
-		&dummyDeps{},
 	)
 
 	result, err := usecase.Execute(context.Background(), BuildSavepointRequest{
-		Savepoint: "base",
-		Force:     false,
+		Savepoint:  "base",
+		Force:      false,
+		FilePath:   "Dockerfile",
+		FullTarget: "docker.io/user/app:1.0",
 	})
 
 	assert.NoError(t, err)
 	assert.True(t, result.Skipped)
 }
 
-// ✅ Test 2: Tag exists but force = true → build anyway
 func TestForceIgnoresTag(t *testing.T) {
 	prepareDockerfile(t)
 
@@ -73,19 +73,19 @@ func TestForceIgnoresTag(t *testing.T) {
 		&dummyDeps{},
 		&alwaysTagExists{},
 		&dummyDeps{},
-		&dummyDeps{},
 	)
 
 	result, err := usecase.Execute(context.Background(), BuildSavepointRequest{
-		Savepoint: "base",
-		Force:     true,
+		Savepoint:  "base",
+		Force:      true,
+		FilePath:   "Dockerfile",
+		FullTarget: "docker.io/user/app:1.0",
 	})
 
 	assert.NoError(t, err)
 	assert.False(t, result.Skipped)
 }
 
-// ✅ Test 3: Tag does not exist → should build
 func TestTagNotExistsTriggersBuild(t *testing.T) {
 	prepareDockerfile(t)
 
@@ -96,13 +96,67 @@ func TestTagNotExistsTriggersBuild(t *testing.T) {
 		&dummyDeps{},
 		&neverTagExists{},
 		&dummyDeps{},
-		&dummyDeps{},
 	)
 
 	result, err := usecase.Execute(context.Background(), BuildSavepointRequest{
-		Savepoint: "base",
+		Savepoint:  "base",
+		FilePath:   "Dockerfile",
+		FullTarget: "docker.io/user/app:1.0",
 	})
 
 	assert.NoError(t, err)
 	assert.False(t, result.Skipped)
+}
+
+func TestInvalidImageReference(t *testing.T) {
+	tests := []struct {
+		name      string
+		target    string
+		wantError string
+	}{
+		{
+			name:      "missing target",
+			target:    "",
+			wantError: "❌ Missing required -t flag",
+		},
+		{
+			name:      "missing tag",
+			target:    "docker.io/user/app",
+			wantError: "missing ':tag'",
+		},
+		{
+			name:      "missing repository",
+			target:    ":1.0",
+			wantError: "Must be repo/image:tag format",
+		},
+		{
+			name:      "no slash in repo",
+			target:    "myapp:1.0",
+			wantError: "must contain at least one '/'",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			prepareDockerfile(t)
+
+			usecase := NewBuildSavepointUseCase(
+				&simpleParser{},
+				&dummyDeps{},
+				&dummyDeps{},
+				&dummyDeps{},
+				&neverTagExists{},
+				&dummyDeps{},
+			)
+
+			_, err := usecase.Execute(context.Background(), BuildSavepointRequest{
+				Savepoint:  "base",
+				FilePath:   "Dockerfile",
+				FullTarget: tt.target,
+			})
+
+			assert.Error(t, err)
+			assert.Contains(t, err.Error(), tt.wantError)
+		})
+	}
 }

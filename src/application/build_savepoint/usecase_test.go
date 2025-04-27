@@ -62,9 +62,11 @@ func TestUseCase_DryRun(t *testing.T) {
 		dockerfile  []string
 		savepoint   string
 		dryRun      bool
+		fullTarget  string
 		wantSkipped bool
 		wantTag     string
 		wantError   bool
+		errorMsg    string
 	}{
 		{
 			name: "successful dry run",
@@ -75,8 +77,9 @@ func TestUseCase_DryRun(t *testing.T) {
 			},
 			savepoint:   "base",
 			dryRun:      true,
+			fullTarget:  "docker.io/user/app:latest",
 			wantSkipped: true,
-			wantTag:     "ghcr.io/test/repo:base",
+			wantTag:     "docker.io/user/app:base",
 		},
 		{
 			name: "successful build",
@@ -87,8 +90,9 @@ func TestUseCase_DryRun(t *testing.T) {
 			},
 			savepoint:   "base",
 			dryRun:      false,
+			fullTarget:  "docker.io/user/app:latest",
 			wantSkipped: false,
-			wantTag:     "ghcr.io/test/repo:base",
+			wantTag:     "docker.io/user/app:base",
 		},
 		{
 			name: "non-existent savepoint",
@@ -96,16 +100,42 @@ func TestUseCase_DryRun(t *testing.T) {
 				"# savepoint: base",
 				"FROM node:20",
 			},
-			savepoint: "nonexistent",
-			dryRun:    true,
-			wantError: true,
+			savepoint:  "nonexistent",
+			dryRun:     true,
+			fullTarget: "docker.io/user/app:latest",
+			wantError:  true,
 		},
 		{
 			name:       "empty dockerfile",
 			dockerfile: []string{},
 			savepoint:  "base",
 			dryRun:     true,
+			fullTarget: "docker.io/user/app:latest",
 			wantError:  true,
+		},
+		{
+			name:      "missing target",
+			dockerfile: []string{"FROM node:20"},
+			savepoint: "base",
+			wantError: true,
+			errorMsg:  "Missing required -t flag",
+		},
+		{
+			name:       "invalid target format",
+			dockerfile: []string{"FROM node:20"},
+			savepoint:  "base",
+			fullTarget: "invalid",
+			wantError:  true,
+			errorMsg:   "missing ':tag'",  // Updated to match actual error
+		},
+		// Add new test for missing slash
+		{
+			name:       "missing slash in repository",
+			dockerfile: []string{"FROM node:20"},
+			savepoint:  "base",
+			fullTarget: "invalid:tag",
+			wantError:  true,
+			errorMsg:   "must contain at least one '/'",
 		},
 	}
 
@@ -126,18 +156,22 @@ func TestUseCase_DryRun(t *testing.T) {
 				&mockBuilder{},
 				&mockChecker{},
 				&mockPusher{},
-				&mockConfig{},
 			)
 
 			req := BuildSavepointRequest{
-				Savepoint: tt.savepoint,
-				DryRun:    tt.dryRun,
+				Savepoint:  tt.savepoint,
+				DryRun:     tt.dryRun,
+				FilePath:   "Dockerfile",
+				FullTarget: tt.fullTarget,
 			}
 
 			result, err := usecase.Execute(context.Background(), req)
 
 			if tt.wantError {
 				assert.Error(t, err)
+				if tt.errorMsg != "" {
+					assert.Contains(t, err.Error(), tt.errorMsg)
+				}
 				return
 			}
 

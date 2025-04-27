@@ -33,15 +33,34 @@ func TestUsesCorrectFilePathFromCLI(t *testing.T) {
 	parser := &parserSpy{}
 	slicer := &dummySlicer{}
 
-	uc := NewBuildSavepointUseCase(parser, slicer, &mockWriter{}, &mockBuilder{}, &mockChecker{}, &mockPusher{}, &mockConfig{})
+	uc := NewBuildSavepointUseCase(parser, slicer, &mockWriter{}, &mockBuilder{}, &mockChecker{}, &mockPusher{})
 
 	_, err := uc.Execute(context.Background(), BuildSavepointRequest{
-		FilePath:  customFile,
-		Savepoint: "base",
-		DryRun:    true,
+		FilePath:   customFile,
+		Savepoint:  "base",
+		DryRun:     true,
+		FullTarget: "docker.io/user/app:latest",
 	})
 
 	assert.NoError(t, err)
 	assert.Equal(t, customFile, parser.Captured)
+}
+
+// Add test for default Dockerfile path
+func TestDefaultsToDockerfileInCurrentDir(t *testing.T) {
+	tmp := t.TempDir()
+	_ = os.Chdir(tmp)
+	_ = os.WriteFile("Dockerfile", []byte("FROM alpine"), 0644)
+
+	parser := &parserSpy{}
+	uc := NewBuildSavepointUseCase(parser, &dummySlicer{}, &mockWriter{}, &mockBuilder{}, &mockChecker{}, &mockPusher{})
+
+	_, err := uc.Execute(context.Background(), BuildSavepointRequest{
+		Savepoint:  "base",
+		FullTarget: "docker.io/user/app:latest",
+	})
+
+	assert.NoError(t, err)
+	assert.Equal(t, "Dockerfile", parser.Captured)
 }
 

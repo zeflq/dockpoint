@@ -36,10 +36,12 @@ func TestSavepointNotFound(t *testing.T) {
 		{Name: "deps", StartLine: 0, EndLine: 1},
 	}}
 
-	uc := NewBuildSavepointUseCase(parser, &mockSlicer{}, &mockWriter{}, &mockBuilder{}, &mockChecker{}, &mockPusher{}, &mockConfig{})
+	uc := NewBuildSavepointUseCase(parser, &mockSlicer{}, &mockWriter{}, &mockBuilder{}, &mockChecker{}, &mockPusher{})
 
 	_, err := uc.Execute(context.Background(), BuildSavepointRequest{
-		Savepoint: "base",
+		Savepoint:  "base",
+		FilePath:   "Dockerfile",
+		FullTarget: "docker.io/user/app:latest",
 	})
 	assert.ErrorIs(t, err, errors.ErrSavepointNotFound)
 }
@@ -52,14 +54,16 @@ func TestValidSavepoint(t *testing.T) {
 		{Name: "base", StartLine: 0, EndLine: 0},
 	}}
 
-	uc := NewBuildSavepointUseCase(parser, &mockSlicer{}, &mockWriter{}, &mockBuilder{}, &mockChecker{}, &mockPusher{}, &mockConfig{})
+	uc := NewBuildSavepointUseCase(parser, &mockSlicer{}, &mockWriter{}, &mockBuilder{}, &mockChecker{}, &mockPusher{})
 
 	result, err := uc.Execute(context.Background(), BuildSavepointRequest{
-		Savepoint: "base",
-		DryRun:    true,
+		Savepoint:  "base",
+		DryRun:     true,
+		FilePath:   "Dockerfile",
+		FullTarget: "docker.io/user/app:latest",
 	})
 	assert.NoError(t, err)
-	assert.Equal(t, "ghcr.io/test/repo:base", result.Tag)
+	assert.Equal(t, "docker.io/user/app:base", result.Tag)
 }
 
 // ✅ 3. Savepoint with end < start should fail at slicer level
@@ -75,10 +79,12 @@ func TestSavepointInvalidRange(t *testing.T) {
 		{Name: "base", StartLine: 3, EndLine: 1}, // invalid range
 	}}
 
-	uc := NewBuildSavepointUseCase(parser, &slicerWithError{}, &mockWriter{}, &mockBuilder{}, &mockChecker{}, &mockPusher{}, &mockConfig{})
+	uc := NewBuildSavepointUseCase(parser, &slicerWithError{}, &mockWriter{}, &mockBuilder{}, &mockChecker{}, &mockPusher{})
 
 	_, err := uc.Execute(context.Background(), BuildSavepointRequest{
-		Savepoint: "base",
+		Savepoint:  "base",
+		FilePath:   "Dockerfile",
+		FullTarget: "docker.io/user/app:latest",
 	})
 	assert.ErrorIs(t, err, errors.ErrSavepointNotFound)
 }
@@ -92,14 +98,16 @@ func TestEmptySavepointStillReturnsEmptySlicedDockerfile(t *testing.T) {
 
 	slicer := &mockSlicer{} // Returns non-error slice even if empty range
 
-	uc := NewBuildSavepointUseCase(parser, slicer, &mockWriter{}, &mockBuilder{}, &mockChecker{}, &mockPusher{}, &mockConfig{})
+	uc := NewBuildSavepointUseCase(parser, slicer, &mockWriter{}, &mockBuilder{}, &mockChecker{}, &mockPusher{})
 
 	result, err := uc.Execute(context.Background(), BuildSavepointRequest{
-		Savepoint: "empty",
-		DryRun:    true,
+		Savepoint:  "empty",
+		DryRun:     true,
+		FilePath:   "Dockerfile",
+		FullTarget: "docker.io/user/app:latest",
 	})
 
 	assert.NoError(t, err)
 	assert.True(t, result.Skipped)
-	assert.Equal(t, "ghcr.io/test/repo:empty", result.Tag)
+	assert.Equal(t, "docker.io/user/app:empty", result.Tag)
 }

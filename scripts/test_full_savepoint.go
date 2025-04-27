@@ -6,7 +6,6 @@ import (
 
 	"github.com/zeflq/dockpoint/src/application/build_savepoint"
 	"github.com/zeflq/dockpoint/src/infrastructure/build"
-	"github.com/zeflq/dockpoint/src/infrastructure/config"
 	"github.com/zeflq/dockpoint/src/infrastructure/docker"
 	"github.com/zeflq/dockpoint/src/infrastructure/parse"
 	"github.com/zeflq/dockpoint/src/infrastructure/registry"
@@ -23,7 +22,6 @@ func TestFullBuildSavepointFlow() {
 		docker.NewDockerBuilder(),
 		registry.NewImageChecker(),
 		registry.NewImagePusher(),
-		config.NewConfigReader(),
 	)
 	dryRun := true
 	req := build_savepoint.BuildSavepointRequest{

@@ -7,9 +7,8 @@ type BuildSavepointRequest struct {
 	Push      bool
 	DryRun    bool
 	FilePath  string
-	Cleanup   bool
 	BaseImage	string
-	TagOverride	string
+	FullTarget  string
 }
 
 // BuildSavepointResult represents the result of the build process.
