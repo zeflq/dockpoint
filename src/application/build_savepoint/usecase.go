@@ -95,9 +95,11 @@ func (uc *BuildSavepointUseCase) Execute(ctx context.Context, req BuildSavepoint
 
 	// Build specific savepoint
 	var target *domain.Savepoint
-	for _, sp := range savepoints {
+	var targetIndex int = -1
+	for i, sp := range savepoints {
 			if sp.Name == req.Savepoint {
 					target = &sp
+					targetIndex = i
 					break
 			}
 	}
@@ -106,6 +108,12 @@ func (uc *BuildSavepointUseCase) Execute(ctx context.Context, req BuildSavepoint
 	}
 
 	finalTag := fmt.Sprintf("%s:%s", imageRepo, target.Name)
+
+	// ✅ Fix: set BaseImage manually if needed
+	if targetIndex > 0 {
+			req.BaseImage = fmt.Sprintf("%s:%s", imageRepo, savepoints[targetIndex-1].Name)
+	}
+
 	return uc.buildOneWithTag(ctx, *target, req, finalTag)
 }
 
