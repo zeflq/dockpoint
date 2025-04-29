@@ -76,6 +76,8 @@ Flags:
 			registry.NewImageChecker(),
 			registry.NewImagePusher(),
 			validator.NewSavepointValidator(), // New validator
+			build.NewDockerfileHasher(),
+			build.NewTagBuilder(),
 		)
 
 		ctx := context.Background()

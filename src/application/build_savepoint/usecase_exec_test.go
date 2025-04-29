@@ -7,66 +7,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/zeflq/dockpoint/src/domain"
 )
-
-// ✅ Spy mocks
-
-type spyWriter struct {
-	Called bool
-	Lines  []string
-}
-
-func (s *spyWriter) Write(lines []string, savepoint string) (string, error) {
-	s.Called = true
-	s.Lines = lines
-	return "/tmp/fake.Dockerfile", nil
-}
-
-type spyBuilder struct {
-	WasCalled bool
-}
-
-func (b *spyBuilder) Build(ctx context.Context, dockerfilePath, contextDir, tag string) error {
-	b.WasCalled = true
-	return nil
-}
-
-type spyPusher struct {
-	WasCalled bool
-}
-
-func (p *spyPusher) Push(tag string) error {
-	p.WasCalled = true
-	return nil
-}
-
-type alwaysFalseChecker struct{}
-
-func (c *alwaysFalseChecker) TagExists(tag string) (bool, error) {
-	return false, nil
-}
-
-type parserReturningOne struct{}
-
-func (p *parserReturningOne) Parse(path string) ([]domain.Savepoint, error) {
-	return []domain.Savepoint{
-		{Name: "base", StartLine: 0, EndLine: 1},
-	}, nil
-}
-
-type simpleSlicer struct{}
-
-func (s *simpleSlicer) Slice([]string, domain.Savepoint) ([]string, error) {
-	return []string{"FROM alpine"}, nil
-}
-
-// Add validator mock
-type mockValidator struct{}
-
-func (m *mockValidator) Validate(savepoints []domain.Savepoint) error {
-	return nil
-}
 
 func TestExecBuildPushPath(t *testing.T) {
 	tests := []struct {
@@ -79,7 +20,7 @@ func TestExecBuildPushPath(t *testing.T) {
 	}{
 		{
 			name:       "successful build and push",
-			dockerfile: "# savepoint: base\nFROM alpine",
+			dockerfile: "FROM alpine\n# savepoint: base",
 			request: BuildSavepointRequest{
 				Savepoint:  "base",
 				Force:      true,
@@ -87,7 +28,7 @@ func TestExecBuildPushPath(t *testing.T) {
 				DryRun:     false,
 				FullTarget: "docker.io/user/app:latest",
 			},
-			wantTag: "docker.io/user/app:base",
+			wantTag: "docker.io/user/app:latest", // Fixed: should match FullTarget
 		},
 		{
 			name:       "missing target fails",
@@ -116,20 +57,17 @@ func TestExecBuildPushPath(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Setup
 			tmp := t.TempDir()
 			dockerfile := filepath.Join(tmp, "Dockerfile")
 			err := os.WriteFile(dockerfile, []byte(tt.dockerfile), 0644)
 			assert.NoError(t, err)
 
-			// Save original dir
 			orig, err := os.Getwd()
 			assert.NoError(t, err)
 			err = os.Chdir(tmp)
 			assert.NoError(t, err)
 			defer os.Chdir(orig)
 
-			// Setup spies
 			writer := &spyWriter{}
 			builder := &spyBuilder{}
 			pusher := &spyPusher{}
@@ -139,18 +77,17 @@ func TestExecBuildPushPath(t *testing.T) {
 				&simpleSlicer{},
 				writer,
 				builder,
-				&alwaysFalseChecker{},
+				&neverTagExists{},
 				pusher,
-				&mockValidator{}, // Fixed: using correct validator mock
+				&mockValidator{},
+				&mockHasher{},
+				&mockTagBuilder{},
 			)
 
-			// Set filepath in request
 			tt.request.FilePath = dockerfile
 
-			// Execute
 			results, err := uc.Execute(context.Background(), tt.request)
 
-			// Assert
 			if tt.wantError {
 				assert.Error(t, err)
 				if tt.errorMsg != "" {

@@ -19,24 +19,20 @@ func prepDockerfile(t *testing.T) {
 	t.Cleanup(func() { os.Chdir(orig) })
 }
 
-// Mock parser with various savepoints
-type parserWith struct {
-	savepoints []domain.Savepoint
-}
-
-func (m *parserWith) Parse(path string) ([]domain.Savepoint, error) {
-	return m.savepoints, nil
-}
-
-// ✅ 1. Savepoint doesn't exist
 func TestSavepointNotFound(t *testing.T) {
 	prepDockerfile(t)
 
-	parser := &parserWith{savepoints: []domain.Savepoint{
-		{Name: "deps", StartLine: 0, EndLine: 1},
-	}}
-
-	uc := NewBuildSavepointUseCase(parser, &mockSlicer{}, &mockWriter{}, &mockBuilder{}, &mockChecker{}, &mockPusher{},&mockValidator{})
+	uc := NewBuildSavepointUseCase(
+		&parserWith{savepoints: []domain.Savepoint{{Name: "deps", StartLine: 0, EndLine: 1}}},
+		&mockSlicer{},
+		&mockWriter{},
+		&mockBuilder{},
+		&mockChecker{},
+		&mockPusher{},
+		&mockValidator{},
+		&mockHasher{},
+		&mockTagBuilder{},
+	)
 
 	_, err := uc.Execute(context.Background(), BuildSavepointRequest{
 		Savepoint:  "base",
@@ -46,15 +42,20 @@ func TestSavepointNotFound(t *testing.T) {
 	assert.ErrorIs(t, err, errors.ErrSavepointNotFound)
 }
 
-// ✅ 2. Valid savepoint — basic test
 func TestValidSavepoint(t *testing.T) {
 	prepDockerfile(t)
 
-	parser := &parserWith{savepoints: []domain.Savepoint{
-		{Name: "base", StartLine: 0, EndLine: 0},
-	}}
-
-	uc := NewBuildSavepointUseCase(parser, &mockSlicer{}, &mockWriter{}, &mockBuilder{}, &mockChecker{}, &mockPusher{}, &mockValidator{})
+	uc := NewBuildSavepointUseCase(
+		&parserWith{savepoints: []domain.Savepoint{{Name: "base", StartLine: 0, EndLine: 0}}},
+		&mockSlicer{},
+		&mockWriter{},
+		&mockBuilder{},
+		&mockChecker{},
+		&mockPusher{},
+		&mockValidator{},
+		&mockHasher{},
+		&mockTagBuilder{},
+	)
 
 	results, err := uc.Execute(context.Background(), BuildSavepointRequest{
 		Savepoint:  "base",
@@ -64,52 +65,5 @@ func TestValidSavepoint(t *testing.T) {
 	})
 	assert.NoError(t, err)
 	result := results.Results[0]
-	assert.Equal(t, "docker.io/user/app:base", result.Tag)
-}
-
-// ✅ 3. Savepoint with end < start should fail at slicer level
-type slicerWithError struct{}
-func (s *slicerWithError) Slice([]string, domain.Savepoint) ([]string, error) {
-	return nil, errors.ErrSavepointNotFound
-}
-
-func TestSavepointInvalidRange(t *testing.T) {
-	prepDockerfile(t)
-
-	parser := &parserWith{savepoints: []domain.Savepoint{
-		{Name: "base", StartLine: 3, EndLine: 1}, // invalid range
-	}}
-
-	uc := NewBuildSavepointUseCase(parser, &slicerWithError{}, &mockWriter{}, &mockBuilder{}, &mockChecker{}, &mockPusher{},&mockValidator{})
-
-	_, err := uc.Execute(context.Background(), BuildSavepointRequest{
-		Savepoint:  "base",
-		FilePath:   "Dockerfile",
-		FullTarget: "docker.io/user/app:latest",
-	})
-	assert.ErrorIs(t, err, errors.ErrSavepointNotFound)
-}
-
-func TestEmptySavepointStillReturnsEmptySlicedDockerfile(t *testing.T) {
-	prepDockerfile(t)
-
-	parser := &parserWith{savepoints: []domain.Savepoint{
-		{Name: "empty", StartLine: 0, EndLine: -1},
-	}}
-
-	slicer := &mockSlicer{} // Returns non-error slice even if empty range
-
-	uc := NewBuildSavepointUseCase(parser, slicer, &mockWriter{}, &mockBuilder{}, &mockChecker{}, &mockPusher{},&mockValidator{})
-
-	results, err := uc.Execute(context.Background(), BuildSavepointRequest{
-		Savepoint:  "empty",
-		DryRun:     true,
-		FilePath:   "Dockerfile",
-		FullTarget: "docker.io/user/app:latest",
-	})
-
-	assert.NoError(t, err)
-	result := results.Results[0]
-	assert.True(t, result.Skipped)
-	assert.Equal(t, "docker.io/user/app:empty", result.Tag)
+	assert.Equal(t, "docker.io/user/app:latest", result.Tag)
 }

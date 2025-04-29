@@ -15,42 +15,57 @@ func TestSavepointValidator_Validate(t *testing.T) {
 		errorMsg   string
 	}{
 		{
-			name: "valid savepoints with base",
+			name: "valid savepoints",
 			savepoints: []domain.Savepoint{
-				{Name: "base", StartLine: 0, EndLine: 1},
-				{Name: "deps", StartLine: 2, EndLine: 3},
+				{Name: "base"},
+				{Name: "deps"},
+				{Name: "build"},
 			},
 			wantError: false,
 		},
 		{
-			name: "duplicate savepoint names",
+			name: "valid savepoint with hyphens and underscores",
 			savepoints: []domain.Savepoint{
-				{Name: "base", StartLine: 0, EndLine: 1},
-				{Name: "base", StartLine: 2, EndLine: 3},
+				{Name: "base-deps"},
+				{Name: "build_stage"},
 			},
-			wantError: true,
-			errorMsg:  "Duplicate savepoint name detected: base",
+			wantError: false,
 		},
 		{
-			name: "missing base savepoint",
+			name: "empty savepoint name",
 			savepoints: []domain.Savepoint{
-				{Name: "deps", StartLine: 0, EndLine: 1},
-				{Name: "build", StartLine: 2, EndLine: 3},
+				{Name: ""},
 			},
 			wantError: true,
-			errorMsg:  "No FROM instruction detected before savepoints",
+			errorMsg:  "Empty savepoint name detected",
+		},
+		{
+			name: "invalid savepoint name characters",
+			savepoints: []domain.Savepoint{
+				{Name: "base@stage"},
+			},
+			wantError: true,
+			errorMsg:  "Invalid savepoint name",
+		},
+		{
+			name: "duplicate savepoint names",
+			savepoints: []domain.Savepoint{
+				{Name: "base"},
+				{Name: "base"},
+			},
+			wantError: true,
+			errorMsg:  "Duplicate savepoint name detected",
 		},
 		{
 			name:       "empty savepoints list",
 			savepoints: []domain.Savepoint{},
-			wantError:  true,
-			errorMsg:   "No FROM instruction detected before savepoints",
+			wantError:  false,
 		},
 		{
-			name: "base-prefixed savepoint is valid",
+			name: "savepoint with numbers",
 			savepoints: []domain.Savepoint{
-				{Name: "base-deps", StartLine: 0, EndLine: 1},
-				{Name: "build", StartLine: 2, EndLine: 3},
+				{Name: "stage1"},
+				{Name: "stage2"},
 			},
 			wantError: false,
 		},

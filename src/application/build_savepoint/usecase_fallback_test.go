@@ -7,15 +7,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/zeflq/dockpoint/src/domain"
-	"github.com/zeflq/dockpoint/src/infrastructure/build"
 )
-
-type emptyParser struct{}
-
-func (p *emptyParser) Parse(string) ([]domain.Savepoint, error) {
-	return []domain.Savepoint{}, nil
-}
 
 func TestFallbackBehavior(t *testing.T) {
 	tests := []struct {
@@ -58,13 +50,11 @@ func TestFallbackBehavior(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Setup temp directory
 			tmp := t.TempDir()
 			fullFile := filepath.Join(tmp, "Dockerfile")
 			err := os.WriteFile(fullFile, []byte(tt.dockerfile), 0644)
 			assert.NoError(t, err)
 
-			// Save and change directory
 			original, err := os.Getwd()
 			assert.NoError(t, err)
 			err = os.Chdir(tmp)
@@ -73,12 +63,14 @@ func TestFallbackBehavior(t *testing.T) {
 
 			uc := NewBuildSavepointUseCase(
 				&emptyParser{},
-				build.NewDockerfileSlicer(),
+				&mockSlicer{},
 				&mockWriter{},
 				&mockBuilder{},
 				&mockChecker{},
 				&mockPusher{},
 				&mockValidator{},
+				&mockHasher{},
+				&mockTagBuilder{},
 			)
 
 			results, err := uc.Execute(context.Background(), BuildSavepointRequest{

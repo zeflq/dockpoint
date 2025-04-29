@@ -22,6 +22,8 @@ type BuildSavepointUseCase struct {
 	Checker registry.ImageChecker
 	Pusher  registry.ImagePusher
 	Validator domain.SavepointValidator
+	Hasher domain.DockerfileHasher
+	TagBuilder domain.TagBuilder
 }
 type BuildSavepointResultList struct {
 	Results []*BuildSavepointResult
@@ -35,6 +37,8 @@ func NewBuildSavepointUseCase(
 	checker registry.ImageChecker,
 	pusher registry.ImagePusher,
 	validator domain.SavepointValidator,
+	hasher domain.DockerfileHasher,
+	tagBuilder domain.TagBuilder,
 ) *BuildSavepointUseCase {
 	return &BuildSavepointUseCase{
 		Parser:  parser,
@@ -44,136 +48,165 @@ func NewBuildSavepointUseCase(
 		Checker: checker,
 		Pusher:  pusher,
 		Validator: validator,
+		Hasher: hasher,
+		TagBuilder: tagBuilder,
 	}
 }
 
-func (uc *BuildSavepointUseCase) Execute(ctx context.Context, req BuildSavepointRequest) (*BuildSavepointResultList, error) {
-	if req.FilePath == "" {
-			req.FilePath = "Dockerfile"
+func ParseAndValidateFullTarget(ref string) (string, string, error) {
+	if ref == "" {
+		return "", "", fmt.Errorf("❌ Full target is empty")
 	}
 
-	if req.FullTarget == "" {
-			return nil, fmt.Errorf("❌ Missing required -t flag. You must specify a full image name like 'docker.io/user/app:1.1.2'")
-	}
-
-	ref := req.FullTarget
 	if !strings.Contains(ref, ":") {
-			return nil, fmt.Errorf("❌ Invalid image reference '%s'. You must specify repo/image:tag format (missing ':tag')", ref)
+		return "", "", fmt.Errorf("❌ Invalid image reference '%s'. You must specify repo/image:tag format (missing ':tag')", ref)
 	}
 
 	parts := strings.SplitN(ref, ":", 2)
-	candidateRepo := parts[0]
-	candidateTag := parts[1]
+	repo := parts[0]
+	tag := parts[1]
 
-	if candidateRepo == "" || candidateTag == "" {
-			return nil, fmt.Errorf("❌ Invalid image reference '%s'. Must be repo/image:tag format", ref)
+	if repo == "" || tag == "" {
+		return "", "", fmt.Errorf("❌ Invalid image reference '%s'. Must be repo/image:tag format", ref)
 	}
 
-	if !strings.Contains(candidateRepo, "/") {
-			return nil, fmt.Errorf("❌ Invalid image reference '%s'. The repository must contain at least one '/' like 'docker.io/user/app:tag'", ref)
+	if !strings.Contains(repo, "/") {
+		return "", "", fmt.Errorf("❌ Invalid image reference '%s'. The repository must contain at least one '/' like 'docker.io/user/app:tag'", ref)
 	}
 
-	imageRepo := candidateRepo
-	baseTag := candidateTag
+	return repo, tag, nil
+}
 
-	fmt.Printf("🔍 Building base image repo: %s, base tag: %s\n", imageRepo, baseTag)
-
-	savepoints, err := uc.Parser.Parse(req.FilePath)
+func FindSavepoint(savepoints []domain.Savepoint, name string) (*domain.Savepoint, int, error) {
+	for i, sp := range savepoints {
+		if sp.Name == name {
+			return &sp, i, nil
+		}
+	}
+	return nil, -1, coreErr.ErrSavepointNotFound
+}
+func (uc *BuildSavepointUseCase) readDockerfile(filePath string) (string, error) {
+	fileBytes, err := os.ReadFile(filePath)
 	if err != nil {
-			return nil, err
+		return "", fmt.Errorf("❌ Failed to read Dockerfile: %v", err)
 	}
-	
+	return string(fileBytes), nil
+}
+
+func (uc *BuildSavepointUseCase) prepareSavepoints(filePath string) ([]domain.Savepoint, error) {
+	savepoints, err := uc.Parser.Parse(filePath)
+	if err != nil {
+		return nil, err
+	}
+
 	if err := uc.Validator.Validate(savepoints); err != nil {
 		return nil, err
 	}
 
-	if len(savepoints) == 0 {
-			// No savepoints: build full Dockerfile
-			fullSavepoint := domain.Savepoint{
-					Name:      baseTag,
-					StartLine: 0,
-					EndLine:   9999,
-			}
-			finalTag := fmt.Sprintf("%s:%s", imageRepo, baseTag)
-			res, err := uc.buildOneWithTag(ctx, fullSavepoint, req, finalTag)
-			if err != nil {
-				return nil, err
-			}
-			return &BuildSavepointResultList{Results: []*BuildSavepointResult{res}}, nil
+	return savepoints, nil
+}
+
+func (uc *BuildSavepointUseCase) validateRequest(req *BuildSavepointRequest) error {
+	if req.FilePath == "" {
+		req.FilePath = "Dockerfile"
 	}
 
-	if req.Savepoint == "" {
-			// Build all savepoints
-			results, err := uc.handleBuildAll(ctx, savepoints, req, imageRepo, baseTag)
-			if err != nil {
-				return nil, err
-			}
-			return &BuildSavepointResultList{Results: results}, nil
+	if req.FullTarget == "" {
+		return fmt.Errorf("❌ Missing required -t flag. You must specify a full image name like 'docker.io/user/app:1.1.2'")
+	}
+	return nil
+}
+
+func (uc *BuildSavepointUseCase) Execute(ctx context.Context, req BuildSavepointRequest) (*BuildSavepointResultList, error) {
+	if err := uc.validateRequest(&req); err != nil {
+		return nil, err
 	}
 
-	// Build specific savepoint
-	var target *domain.Savepoint
-	var targetIndex int = -1
-	for i, sp := range savepoints {
-			if sp.Name == req.Savepoint {
-					target = &sp
-					targetIndex = i
-					break
-			}
-	}
-	if target == nil {
-			return nil, coreErr.ErrSavepointNotFound
-	}
-
-	finalTag := fmt.Sprintf("%s:%s", imageRepo, target.Name)
-
-	// ✅ Fix: set BaseImage manually if needed
-	if targetIndex > 0 {
-			req.BaseImage = fmt.Sprintf("%s:%s", imageRepo, savepoints[targetIndex-1].Name)
-	}
-
-	res, err := uc.buildOneWithTag(ctx, *target, req, finalTag)
+	imageRepo, baseTag, err := ParseAndValidateFullTarget(req.FullTarget)
 	if err != nil {
 		return nil, err
 	}
 
-	return &BuildSavepointResultList{Results: []*BuildSavepointResult{res}}, nil
-	
+	fmt.Printf("🔍 Building base image repo: %s, base tag: %s\n", imageRepo, baseTag)
+
+	fileContent, err := uc.readDockerfile(req.FilePath)
+	if err != nil {
+		return nil, err
+	}
+
+	savepoints, err := uc.prepareSavepoints(req.FilePath)
+	if err != nil {
+		return nil, err
+	}
+
+	return uc.processSavepoints(ctx, savepoints, req, fileContent, imageRepo, baseTag)
 }
 
 
+func (uc *BuildSavepointUseCase) processSavepoints(
+	ctx context.Context,
+	savepoints []domain.Savepoint,
+	req BuildSavepointRequest,
+	fileContent string,
+	imageRepo string,
+	baseTag string,
+) (*BuildSavepointResultList, error) {
+	var targetSavepoints []domain.Savepoint
+
+	if len(savepoints) == 0 {
+		// Handle no savepoints case
+		lines := strings.Split(fileContent, "\n")
+		realEndLine := len(lines) - 1
+		targetSavepoints = []domain.Savepoint{{
+			Name:      baseTag,
+			StartLine: 0,
+			EndLine:   realEndLine,
+		}}
+	} else if req.Savepoint != "" {
+		// Handle single savepoint case
+		target, _, err := FindSavepoint(savepoints, req.Savepoint)
+		if err != nil {
+			return nil, err
+		}
+		targetSavepoints = []domain.Savepoint{*target}
+	} else {
+		// Handle all savepoints case
+		targetSavepoints = savepoints
+	}
+
+	results, err := uc.handleBuildAll(ctx, targetSavepoints, req, fileContent, imageRepo, baseTag)
+	if err != nil {
+		return nil, err
+	}
+
+	return &BuildSavepointResultList{Results: results}, nil
+}
+
+func PrepareDockerfileContent(fileContent string, sp domain.Savepoint, baseImage string) (string, error) {
+	lines := strings.Split(fileContent, "\n")
+	if sp.StartLine < 0 || sp.EndLine >= len(lines) || sp.StartLine > sp.EndLine {
+		return "", fmt.Errorf("invalid savepoint line range: start=%d end=%d totalLines=%d", sp.StartLine, sp.EndLine, len(lines))
+	}
+
+	sliced := lines[sp.StartLine : sp.EndLine+1]
+
+	finalLines := sliced
+	if baseImage != "" {
+		finalLines = append([]string{fmt.Sprintf("FROM %s", baseImage)}, sliced...)
+	}
+
+	dockerfileContent := strings.Join(finalLines, "\n")
+	return dockerfileContent, nil
+}
 
 func (uc *BuildSavepointUseCase) buildOneWithTag(
 	ctx context.Context,
 	sp domain.Savepoint,
 	req BuildSavepointRequest,
+	dockerfileContent string,
 	finalTag string,
 ) (*BuildSavepointResult, error) {
-	lines, err := os.ReadFile(req.FilePath)
-	if err != nil {
-			return nil, err
-	}
-	parsedLines := strings.Split(string(lines), "\n")
-
-	sliced, err := uc.Slicer.Slice(parsedLines, sp)
-	if err != nil {
-			return nil, err
-	}
-
-	finalLines := sliced
-	if req.BaseImage != "" {
-			finalLines = append([]string{fmt.Sprintf("FROM %s", req.BaseImage)}, sliced...)
-	}
-
-	dockerfileContent := strings.Join(finalLines, "\n")
-
 	if req.DryRun {
-			// fmt.Println("📝 Dry-run preview:")
-			// fmt.Println("====================================")
-			// fmt.Printf("▶ %s:\n", finalTag)
-			// fmt.Println(dockerfileContent)
-			// fmt.Println("------------------------------------")
-			// fmt.Println("====================================")
 			return &BuildSavepointResult{
 					Tag:           finalTag,
 					DockerfileOut: dockerfileContent,
@@ -193,7 +226,7 @@ func (uc *BuildSavepointUseCase) buildOneWithTag(
 			}
 	}
 
-	dockerfilePath, err := uc.Writer.Write(finalLines, sp.Name)
+	dockerfilePath, err := uc.Writer.Write(strings.Split(dockerfileContent, "\n"), sp.Name)
 	if err != nil {
 			fmt.Printf("❌ Failed to write temporary Dockerfile: %v\n", err)
 			return nil, err
@@ -224,34 +257,56 @@ func (uc *BuildSavepointUseCase) handleBuildAll(
 	ctx context.Context,
 	savepoints []domain.Savepoint,
 	req BuildSavepointRequest,
+	fileContent string,
 	imageRepo string,
 	baseTag string,
 ) ([]*BuildSavepointResult, error) {
+
 	var results []*BuildSavepointResult
+	var previousTag string
 
 	for i, sp := range savepoints {
-			currentReq := req
-			if i > 0 {
-					currentReq.BaseImage = fmt.Sprintf("%s:%s", imageRepo, savepoints[i-1].Name)
-			}
+		currentReq := req
+		var baseImage string
 
-			var finalTag string
-			if i == len(savepoints)-1 {
-					// Last savepoint → baseTag (provided or default latest)
-					finalTag = fmt.Sprintf("%s:%s", imageRepo, baseTag)
-			} else {
-					// Inner savepoints → savepoint name
-					finalTag = fmt.Sprintf("%s:%s", imageRepo, sp.Name)
-			}
+		if i > 0 {
+			baseImage = previousTag
+			currentReq.BaseImage = previousTag
+		}
 
-			fmt.Printf("🔨 Building Savepoint: %s -> %s\n", sp.Name, finalTag)
+		dockerfileContent, err := PrepareDockerfileContent(fileContent, sp, baseImage)
+		if err != nil {
+			fmt.Printf("❌ Failed preparing Dockerfile content for savepoint %s: %v\n", sp.Name, err)
+			continue
+		}
+		isLast := i == len(savepoints)-1
+		if isLast {
+			//force the last image to be rebuilt
+			currentReq.Force = true
+		}
+		tagCtx := domain.TagContext{
+			FileContent: dockerfileContent,
+			Repo:        imageRepo,
+			SavepointName: sp.Name,
+			FinalImageTag: baseTag,
+			IsLast:      isLast,
+		}		
 
-			res, err := uc.buildOneWithTag(ctx, sp, currentReq, finalTag)
-			if err != nil {
-					fmt.Printf("⚠️  Error building savepoint %s: %v\n", sp.Name, err)
-					continue
-			}
-			results = append(results, res)
+		finalTag, err := uc.TagBuilder.BuildFinalTag(tagCtx)
+		if err != nil {
+			fmt.Printf("❌ Failed to build tag for savepoint %s: %v\n", sp.Name, err)
+			continue
+		}
+
+		fmt.Printf("🔨 Building Savepoint: %s -> %s\n", sp.Name, finalTag)
+
+		res, err := uc.buildOneWithTag(ctx, sp, currentReq, dockerfileContent, finalTag)
+		if err != nil {
+			fmt.Printf("⚠️  Error building savepoint %s: %v\n", sp.Name, err)
+			continue
+		}
+		previousTag = res.Tag
+		results = append(results, res)
 	}
 
 	return results, nil

@@ -10,33 +10,22 @@ import (
 	"github.com/zeflq/dockpoint/src/domain"
 )
 
-// Shared mocks
-type alwaysTagExists struct{}
-func (m *alwaysTagExists) TagExists(tag string) (bool, error) { return true, nil }
-
-type neverTagExists struct{}
-func (m *neverTagExists) TagExists(tag string) (bool, error) { return false, nil }
-
-type dummyDeps struct {
-	mockSlicer
-	mockWriter
-	mockBuilder
-	mockPusher
-	mockConfig
-}
-
 // Simple shared parser for "base"
 type simpleParser struct{}
 func (m *simpleParser) Parse(path string) ([]domain.Savepoint, error) {
-	return []domain.Savepoint{{Name: "base", StartLine: 0, EndLine: 1}}, nil
+    // Changed: adjust line range to match actual content
+    return []domain.Savepoint{{Name: "base", StartLine: 0, EndLine: 0}}, nil
 }
 
 func prepareDockerfile(t *testing.T) {
-	tmp := t.TempDir()
-	os.WriteFile(filepath.Join(tmp, "Dockerfile"), []byte("FROM test"), 0644)
-	orig, _ := os.Getwd()
-	os.Chdir(tmp)
-	t.Cleanup(func() { os.Chdir(orig) })
+    tmp := t.TempDir()
+    // Changed: add newline to ensure proper line counting
+    err := os.WriteFile(filepath.Join(tmp, "Dockerfile"), []byte("FROM test\n"), 0644)
+    assert.NoError(t, err)
+    orig, _ := os.Getwd()
+    err = os.Chdir(tmp)
+    assert.NoError(t, err)
+    t.Cleanup(func() { os.Chdir(orig) })
 }
 
 // ✅ Test 1: Tag exists and force = false → skip
@@ -45,12 +34,14 @@ func TestTagExistsSkipsBuild(t *testing.T) {
 
 	usecase := NewBuildSavepointUseCase(
 		&simpleParser{},
-		&dummyDeps{},
-		&dummyDeps{},
-		&dummyDeps{},
+		&dummySlicer{}, // Changed: use dummySlicer instead of mockSlicer
+		&spyWriter{},   // Changed: use spyWriter to track calls
+		&spyBuilder{},  // Changed: use spyBuilder to track calls
 		&alwaysTagExists{},
-		&dummyDeps{},
+		&spyPusher{},   // Changed: use spyPusher to track calls
 		&mockValidator{},
+		&mockHasher{},
+		&mockTagBuilder{},
 	)
 
 	results, err := usecase.Execute(context.Background(), BuildSavepointRequest{
@@ -58,11 +49,13 @@ func TestTagExistsSkipsBuild(t *testing.T) {
 		Force:      false,
 		FilePath:   "Dockerfile",
 		FullTarget: "docker.io/user/app:1.0",
+		DryRun:     true, // Added: enable dry run mode
 	})
 
 	assert.NoError(t, err)
 	result := results.Results[0]
-	assert.True(t, result.Skipped)
+	assert.True(t, result.Skipped, "Build should be skipped when tag exists and force is false")
+	assert.Equal(t, "docker.io/user/app:1.0", result.Tag)
 }
 
 func TestForceIgnoresTag(t *testing.T) {
@@ -70,12 +63,14 @@ func TestForceIgnoresTag(t *testing.T) {
 
 	usecase := NewBuildSavepointUseCase(
 		&simpleParser{},
-		&dummyDeps{},
-		&dummyDeps{},
-		&dummyDeps{},
+		&mockSlicer{},
+		&mockWriter{},
+		&mockBuilder{},
 		&alwaysTagExists{},
-		&dummyDeps{},
+		&mockPusher{},
 		&mockValidator{},
+		&mockHasher{},
+		&mockTagBuilder{},
 	)
 
 	results, err := usecase.Execute(context.Background(), BuildSavepointRequest{
@@ -95,12 +90,14 @@ func TestTagNotExistsTriggersBuild(t *testing.T) {
 
 	usecase := NewBuildSavepointUseCase(
 		&simpleParser{},
-		&dummyDeps{},
-		&dummyDeps{},
-		&dummyDeps{},
+		&mockSlicer{},
+		&mockWriter{},
+		&mockBuilder{},
 		&neverTagExists{},
-		&dummyDeps{},
+		&mockPusher{},
 		&mockValidator{},
+		&mockHasher{},
+		&mockTagBuilder{},
 	)
 
 	results, err := usecase.Execute(context.Background(), BuildSavepointRequest{
@@ -148,12 +145,14 @@ func TestInvalidImageReference(t *testing.T) {
 
 			usecase := NewBuildSavepointUseCase(
 				&simpleParser{},
-				&dummyDeps{},
-				&dummyDeps{},
-				&dummyDeps{},
+				&mockSlicer{},
+				&mockWriter{},
+				&mockBuilder{},
 				&neverTagExists{},
-				&dummyDeps{},
+				&mockPusher{},
 				&mockValidator{},
+				&mockHasher{},
+				&mockTagBuilder{},
 			)
 
 			_, err := usecase.Execute(context.Background(), BuildSavepointRequest{

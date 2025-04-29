@@ -2,10 +2,12 @@ package validator
 
 import (
 	"fmt"
-	"strings"
+	"regexp"
 
 	"github.com/zeflq/dockpoint/src/domain"
 )
+
+var validSavepointName = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 
 type SavepointValidatorImpl struct{}
 
@@ -15,21 +17,20 @@ func NewSavepointValidator() domain.SavepointValidator {
 
 func (v *SavepointValidatorImpl) Validate(savepoints []domain.Savepoint) error {
 	seen := make(map[string]bool)
-	firstFromSeen := false
 
 	for _, sp := range savepoints {
+		if sp.Name == "" {
+			return fmt.Errorf("❌ Empty savepoint name detected")
+		}
+
+		if !validSavepointName.MatchString(sp.Name) {
+			return fmt.Errorf("❌ Invalid savepoint name: %s (only a–z, A–Z, 0–9, _, - allowed)", sp.Name)
+		}
+
 		if seen[sp.Name] {
 			return fmt.Errorf("❌ Duplicate savepoint name detected: %s", sp.Name)
 		}
 		seen[sp.Name] = true
-
-		if strings.HasPrefix(strings.ToLower(sp.Name), "base") {
-			firstFromSeen = true
-		}
-	}
-
-	if !firstFromSeen {
-		return fmt.Errorf("❌ No FROM instruction detected before savepoints")
 	}
 
 	return nil

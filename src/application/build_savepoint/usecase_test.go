@@ -2,59 +2,12 @@ package build_savepoint
 
 import (
 	"context"
-	"errors"
 	"os"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/zeflq/dockpoint/src/domain"
 )
-
-// ✅ Mocks
-// Update mockParser to handle empty Dockerfile
-type mockParser struct {
-	dockerfile []string
-}
-
-func (m *mockParser) Parse(path string) ([]domain.Savepoint, error) {
-	if len(m.dockerfile) == 0 {
-		return nil, errors.New("empty dockerfile")
-	}
-	return []domain.Savepoint{{Name: "base", StartLine: 0, EndLine: 1}}, nil
-}
-
-type mockSlicer struct {
-	content []string
-}
-func (m *mockSlicer) Slice(lines []string, sp domain.Savepoint) ([]string, error) {
-	return []string{"FROM node:20"}, nil
-}
-
-type mockWriter struct{}
-func (m *mockWriter) Write(lines []string, savepoint string) (string, error) {
-	return "/tmp/fake.Dockerfile", nil
-}
-
-type mockBuilder struct{}
-func (m *mockBuilder) Build(ctx context.Context, dockerfilePath, contextDir, tag string) error {
-	return nil
-}
-
-type mockChecker struct{}
-func (m *mockChecker) TagExists(tag string) (bool, error) {
-	return false, nil
-}
-
-type mockPusher struct{}
-func (m *mockPusher) Push(tag string) error {
-	return nil
-}
-
-type mockConfig struct{}
-func (m *mockConfig) GetRepo() (string, error) {
-	return "ghcr.io/test/repo", nil
-}
 
 func TestUseCase_DryRun(t *testing.T) {
 	tests := []struct {
@@ -79,7 +32,7 @@ func TestUseCase_DryRun(t *testing.T) {
 			dryRun:      true,
 			fullTarget:  "docker.io/user/app:latest",
 			wantSkipped: true,
-			wantTag:     "docker.io/user/app:base",
+			wantTag:     "docker.io/user/app:latest",
 		},
 		{
 			name: "successful build",
@@ -92,7 +45,7 @@ func TestUseCase_DryRun(t *testing.T) {
 			dryRun:      false,
 			fullTarget:  "docker.io/user/app:latest",
 			wantSkipped: false,
-			wantTag:     "docker.io/user/app:base",
+			wantTag:     "docker.io/user/app:latest",
 		},
 		{
 			name: "non-existent savepoint",
@@ -126,9 +79,8 @@ func TestUseCase_DryRun(t *testing.T) {
 			savepoint:  "base",
 			fullTarget: "invalid",
 			wantError:  true,
-			errorMsg:   "missing ':tag'",  // Updated to match actual error
+			errorMsg:   "missing ':tag'",
 		},
-		// Add new test for missing slash
 		{
 			name:       "missing slash in repository",
 			dockerfile: []string{"FROM node:20"},
@@ -157,6 +109,8 @@ func TestUseCase_DryRun(t *testing.T) {
 				&mockChecker{},
 				&mockPusher{},
 				&mockValidator{},
+				&mockHasher{},
+				&mockTagBuilder{},
 			)
 
 			req := BuildSavepointRequest{
