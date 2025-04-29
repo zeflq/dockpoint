@@ -5,13 +5,14 @@ import (
 
 	"github.com/spf13/cobra"
 )
-
+var version = "v1.0.0"
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "dockpoint",
 	Short: "A savepoint-aware Docker build CLI",
 	Long: `dockpoint enables incremental Docker builds using inline savepoints.
 It's designed for DevOps teams and monorepos to improve CI/CD performance.`,
+	Version: version,
 }
 
 

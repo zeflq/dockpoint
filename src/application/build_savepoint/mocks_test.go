@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 
-	err "github.com/zeflq/dockpoint/src/core/errors"
 	"github.com/zeflq/dockpoint/src/domain"
 )
 
@@ -142,9 +141,4 @@ func (s *simpleSlicer) Slice([]string, domain.Savepoint) ([]string, error) {
 type dummySlicer struct{}
 func (s *dummySlicer) Slice(lines []string, sp domain.Savepoint) ([]string, error) {
 	return lines, nil
-}
-
-type slicerWithError struct{}
-func (s *slicerWithError) Slice([]string, domain.Savepoint) ([]string, error) {
-	return nil, err.ErrSavepointNotFound
 }

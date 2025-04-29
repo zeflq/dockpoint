@@ -1,0 +1,41 @@
+# .github/workflows/ci.yml
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    name: Run tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      # - name: Install linters
+      #   run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+
+      # - name: Lint code
+      #   run: golangci-lint run ./...
+
+      - name: Run unit tests
+        run: go test ./src/... -v -coverprofile=coverage.out
+      
+      - name: Build Dockpoint binary
+        run: go build -o dockpoint ./src/bootstrap
+      
+      - name: Upload coverage report
+        uses: codecov/codecov-action@v4
+        with:
+          files: coverage.out
+          fail_ci_if_error: true
+          verbose: true

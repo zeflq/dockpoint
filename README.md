@@ -129,9 +129,12 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for full contribution guide.
 | Epic | Feature | Status |
 |:---|:---|:---|
 | Savepoint builds | Build and tag savepoints | ✅ Done |
-| Smarter Caching | Full context hash caching |📋 Planned |
+| Smarter Caching | Full context hash caching |✅ Done |
 | Verbosity Control | Add `--verbose` mode | 📋 Planned |
 | Structured Logging | Zap or Logrus integration | 📋 Planned |
+| Pre-commit: Coverage to 80-90% | current 74.9 | 📋 Planned |
+| Pre-commit: golangci-lint | current 79.4 | 📋 Planned |
+
 
 ---
 
