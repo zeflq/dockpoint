@@ -1,0 +1,35 @@
+version: 2
+
+project_name: dockpoint
+
+builds:
+  - id: dockpoint
+    main: ./src/bootstrap/main.go
+    binary: dockpoint
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - "-s -w -X github.com/zeflq/dockpoint/src/bootstrap/cmd.version={{.Version}}"
+
+archives:
+  - format: tar.gz
+
+checksum:
+  name_template: "{{ .ProjectName }}_checksums.txt"
+
+release:
+  github:
+    owner: zeflq
+    name: dockpoint
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'

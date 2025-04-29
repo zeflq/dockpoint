@@ -1,3 +1,4 @@
 .dockpointrc.json
 .dockpoint/tmp/
-coverage.*
+coverage.*# Added by goreleaser init:
+dist/
