@@ -3,7 +3,8 @@
 **Dockpoint** is a savepoint-aware Docker build CLI tool that enables efficient and incremental Docker builds using inline savepoints inside your Dockerfile.
 
 It’s designed for CI/CD pipelines, DevOps engineers, and platform teams managing Dockerized monorepos.
-
+[![CI](https://github.com/zeflq/dockpoint/actions/workflows/ci.yml/badge.svg)](https://github.com/zeflq/dockpoint/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/zeflq/dockpoint/branch/main/graph/badge.svg)](https://codecov.io/gh/zeflq/dockpoint)
 ---
 
 ## 🎯 Purpose
@@ -80,6 +81,33 @@ dockpoint build-savepoint -t docker.io/myuser/myapp:1.1.2 --dry-run
 
 ---
 
+## 🧪 Quick Install
+
+Run this to install latest:
+
+```bash
+curl -sSL https://raw.githubusercontent.com/zeflq/dockpoint/main/install.sh | bash
+```
+## 📥 Install
+
+Download the latest Dockpoint binary from [Releases](https://github.com/zeflq/dockpoint/releases).
+
+Example for Linux/macOS:
+
+```bash
+# Download
+curl -L https://github.com/zeflq/dockpoint/releases/latest/download/dockpoint_1.0.0_linux_amd64.tar.gz -o dockpoint.tar.gz
+
+# Extract and move
+tar -xzf dockpoint.tar.gz
+chmod +x dockpoint
+sudo mv dockpoint /usr/local/bin/dockpoint
+
+# Test it
+dockpoint --help
+```
+---
+
 ## 🔐 Smarter Caching (Optional)
 
 For full context-based caching, hash your full build context before building:
@@ -132,8 +160,8 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for full contribution guide.
 | Smarter Caching | Full context hash caching |✅ Done |
 | Verbosity Control | Add `--verbose` mode | 📋 Planned |
 | Structured Logging | Zap or Logrus integration | 📋 Planned |
-| Pre-commit: Coverage to 80-90% | current 74.9 | 📋 Planned |
-| Pre-commit: golangci-lint | current 79.4 | 📋 Planned |
+| Pre-commit: Coverage to 80-90% |  | 📋 Planned |
+| Pre-commit: golangci-lint |  | 📋 Planned |
 
 
 ---
